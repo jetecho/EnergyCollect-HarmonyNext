@@ -149,6 +149,14 @@
       "value": "完成一次会话后，趋势图和记录会显示在这里"
     },
     {
+      "name": "history_no_device_title",
+      "value": "还没有设备"
+    },
+    {
+      "name": "history_no_device_desc",
+      "value": "添加设备并记录会话后可在此查看历史"
+    },
+    {
       "name": "history_chart_title",
       "value": "电量趋势"
     },

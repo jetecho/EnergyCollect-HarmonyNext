@@ -87,11 +87,19 @@ export struct HistoryTab {
     HdsNavigation() {
       Scroll() {
         Column({ space: 14 }) {
-          this.FilterRow()
-          this.StatsRow()
-          this.ChartCard()
-          this.BarChartCard()
-          this.ListSection()
+          if (this.devices.length === 0) {
+            this.NoDeviceBody()
+          } else {
+            this.FilterRow()
+            this.StatsRow()
+            if (this.sessions.length === 0) {
+              this.NoRecordBody()
+            } else {
+              this.ChartCard()
+              this.BarChartCard()
+              this.ListSection()
+            }
+          }
         }
         .width('100%')
         .padding({ left: 16, right: 16, top: 16, bottom: 96 + this.navBarHeight })
@@ -233,26 +241,41 @@ export struct HistoryTab {
 
   @Builder
   ListSection() {
-    if (this.sessions.length === 0) {
-      Column() {
-        EmptyState({
-          icon: $r('app.media.ic_history'),
-          title: $r('app.string.history_empty_title'),
-          desc: $r('app.string.history_empty_desc')
+    Column({ space: 10 }) {
+      ForEach(this.sessions, (s: Session) => {
+        SessionItem({
+          session: s,
+          deviceName: this.findDevice(s.deviceId)?.name ?? '',
+          deviceIcon: this.findDevice(s.deviceId)?.icon ?? 'other'
         })
-      }
-      .width('100%')
-    } else {
-      Column({ space: 10 }) {
-        ForEach(this.sessions, (s: Session) => {
-          SessionItem({
-            session: s,
-            deviceName: this.findDevice(s.deviceId)?.name ?? '',
-            deviceIcon: this.findDevice(s.deviceId)?.icon ?? 'other'
-          })
-        }, (s: Session) => `${s.id}_${s.endTime}`)
-      }
-      .width('100%')
+      }, (s: Session) => `${s.id}_${s.endTime}`)
     }
+    .width('100%')
+  }
+
+  @Builder
+  NoDeviceBody() {
+    Column({ space: 4 }) {
+      EmptyState({
+        icon: $r('app.media.ic_device_other'),
+        title: $r('app.string.history_no_device_title'),
+        desc: $r('app.string.history_no_device_desc')
+      })
+    }
+    .width('100%')
+    .padding({ top: 40 })
+  }
+
+  @Builder
+  NoRecordBody() {
+    Column({ space: 4 }) {
+      EmptyState({
+        icon: $r('app.media.ic_history'),
+        title: $r('app.string.history_empty_title'),
+        desc: $r('app.string.history_empty_desc')
+      })
+    }
+    .width('100%')
+    .padding({ top: 20 })
   }
 }
