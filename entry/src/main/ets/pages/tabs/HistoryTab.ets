@@ -235,7 +235,7 @@ export struct HistoryTab {
             deviceName: this.findDevice(s.deviceId)?.name ?? '',
             deviceIcon: this.findDevice(s.deviceId)?.icon ?? 'other'
           })
-        }, (s: Session) => s.id.toString())
+        }, (s: Session) => `${s.id}_${s.endTime}`)
       }
       .width('100%')
     }
