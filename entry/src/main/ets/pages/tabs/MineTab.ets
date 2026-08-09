@@ -108,10 +108,15 @@ export struct MineTab {
   private async onSaveDevice(name: string, icon: string, capacity: number, rangeRated: number, statMode: string): Promise<void> {
     if (this.sheetId === 0) {
       const id: number = await this.deviceRepo.insert(name, icon, capacity, rangeRated, statMode);
-      const cur: number = AppStorage.get<number>('currentDeviceId') ?? -1;
-      if (cur <= 0) {
-        AppStorage.setOrCreate('currentDeviceId', id);
-        PreferencesUtil.setCurrentDeviceId(id);
+      const curDefault: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
+      let defaultValid: boolean = false;
+      if (curDefault > 0) {
+        const exist: Device | null = await this.deviceRepo.getById(curDefault);
+        defaultValid = exist !== null;
+      }
+      if (!defaultValid) {
+        AppStorage.setOrCreate('defaultDeviceId', id);
+        PreferencesUtil.setDefaultDeviceId(id);
       }
     } else {
       await this.deviceRepo.update(this.sheetId, name, icon, capacity, rangeRated, statMode);

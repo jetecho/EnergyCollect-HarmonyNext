@@ -7,6 +7,7 @@ import { Device, iconToResource, isNev } from '../../model/Device';
 import { Session } from '../../model/Session';
 import { SessionType } from '../../model/SessionType';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
+import { PreferencesUtil } from '../../data/PreferencesUtil';
 import { SessionRepository } from '../../data/repository/SessionRepository';
 import { CalcUtil } from '../../utils/CalcUtil';
 import { DateTimeUtil } from '../../utils/DateTimeUtil';
@@ -454,10 +455,23 @@ export struct HomeTab {
   }
 
   private async saveDevice(name: string, icon: string, capacity: number, rangeRated: number, statMode: string): Promise<void> {
-    await this.deviceRepo.insert(name, icon, capacity, rangeRated, statMode);
+    const id: number = await this.deviceRepo.insert(name, icon, capacity, rangeRated, statMode);
+    await this.ensureDefaultDevice(id);
     this.showDeviceSheet = false;
     this.bump();
     this.loadData();
+  }
+
+  private async ensureDefaultDevice(newId: number): Promise<void> {
+    const curDefault: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
+    if (curDefault > 0) {
+      const exist: Device | null = await this.deviceRepo.getById(curDefault);
+      if (exist !== null) {
+        return;
+      }
+    }
+    AppStorage.setOrCreate('defaultDeviceId', newId);
+    PreferencesUtil.setDefaultDeviceId(newId);
   }
 
   build() {
