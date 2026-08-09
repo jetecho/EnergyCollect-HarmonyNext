@@ -25,6 +25,9 @@ export struct MineTab {
   @State sheetIcon: string = 'other';
   @State sheetId: number = 0;
   @State sheetCanDelete: boolean = false;
+  @State sheetCapacity: number = 0;
+  @State sheetRange: number = 0;
+  @State sheetStatMode: string = 'CLTC';
 
   private deviceRepo: DeviceRepository = new DeviceRepository();
   private sessionRepo: SessionRepository = new SessionRepository();
@@ -55,6 +58,9 @@ export struct MineTab {
     this.sheetId = 0;
     this.sheetName = '';
     this.sheetIcon = 'other';
+    this.sheetCapacity = 0;
+    this.sheetRange = 0;
+    this.sheetStatMode = 'CLTC';
     this.sheetTitle = $r('app.string.dialog_new_device_title');
     this.sheetCanDelete = false;
     this.showSheet = true;
@@ -64,21 +70,24 @@ export struct MineTab {
     this.sheetId = d.id;
     this.sheetName = d.name;
     this.sheetIcon = d.icon;
+    this.sheetCapacity = d.batteryCapacity;
+    this.sheetRange = d.rangeRated;
+    this.sheetStatMode = d.statMode.length > 0 ? d.statMode : 'CLTC';
     this.sheetTitle = $r('app.string.dialog_edit_device_title');
     this.sheetCanDelete = true;
     this.showSheet = true;
   }
 
-  private async onSaveDevice(name: string, icon: string): Promise<void> {
+  private async onSaveDevice(name: string, icon: string, capacity: number, rangeRated: number, statMode: string): Promise<void> {
     if (this.sheetId === 0) {
-      const id: number = await this.deviceRepo.insert(name, icon);
+      const id: number = await this.deviceRepo.insert(name, icon, capacity, rangeRated, statMode);
       const cur: number = AppStorage.get<number>('currentDeviceId') ?? -1;
       if (cur <= 0) {
         AppStorage.setOrCreate('currentDeviceId', id);
         PreferencesUtil.setCurrentDeviceId(id);
       }
     } else {
-      await this.deviceRepo.update(this.sheetId, name, icon);
+      await this.deviceRepo.update(this.sheetId, name, icon, capacity, rangeRated, statMode);
     }
     this.showSheet = false;
     this.bump();
@@ -252,9 +261,12 @@ export struct MineTab {
       sheetTitle: this.sheetTitle,
       initialName: this.sheetName,
       initialIcon: this.sheetIcon,
+      initialCapacity: this.sheetCapacity,
+      initialRange: this.sheetRange,
+      initialStatMode: this.sheetStatMode,
       canDelete: this.sheetCanDelete,
-      onSave: (name: string, icon: string): void => {
-        this.onSaveDevice(name, icon);
+      onSave: (name: string, icon: string, capacity: number, rangeRated: number, statMode: string): void => {
+        this.onSaveDevice(name, icon, capacity, rangeRated, statMode);
       },
       onDelete: (): void => {
         this.confirmDeleteDevice();

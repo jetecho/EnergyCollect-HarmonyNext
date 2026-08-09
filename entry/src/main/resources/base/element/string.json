@@ -237,8 +237,32 @@
       "value": "设备图标"
     },
     {
+      "name": "device_capacity_label",
+      "value": "电池容量(kWh)"
+    },
+    {
+      "name": "device_range_label",
+      "value": "标称续航(km)"
+    },
+    {
+      "name": "device_stat_mode_label",
+      "value": "续航标准"
+    },
+    {
+      "name": "stat_mode_cltc",
+      "value": "CLTC"
+    },
+    {
+      "name": "stat_mode_wltc",
+      "value": "WLTC"
+    },
+    {
       "name": "device_type_ev",
       "value": "电动车"
+    },
+    {
+      "name": "device_type_nev",
+      "value": "新能源汽车"
     },
     {
       "name": "device_type_powerbank",
@@ -283,6 +307,10 @@
     {
       "name": "battery_label",
       "value": "电量"
+    },
+    {
+      "name": "session_range_label",
+      "value": "当前续航(km)"
     },
     {
       "name": "battery_note_label",

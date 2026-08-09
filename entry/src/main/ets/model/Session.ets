@@ -10,6 +10,8 @@ export class Session {
   endTime: number = 0;
   note: string = '';
   createdAt: number = 0;
+  startRange: number = -1;
+  endRange: number = -1;
 
   isActive(): boolean {
     return this.endTime === 0;

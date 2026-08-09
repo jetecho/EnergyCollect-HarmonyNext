@@ -5,10 +5,14 @@ export struct BatteryInputDialog {
   maxValue: number = 100;
   minValue: number = 0;
   defaultValue: number = -1;
+  showRange: boolean = false;
+  rangeMax: number = 0;
+  rangeDefault: number = -1;
   showNote: boolean = true;
-  onConfirm: (battery: number, note: string) => void = () => {};
+  onConfirm: (battery: number, note: string, range: number) => void = () => {};
   onInvalid: () => void = () => {};
   @State battery: number = 100;
+  @State range: number = 0;
   @State note: string = '';
 
   aboutToAppear(): void {
@@ -20,6 +24,9 @@ export struct BatteryInputDialog {
       this.battery = this.maxValue;
     } else {
       this.battery = 100;
+    }
+    if (this.showRange) {
+      this.range = this.rangeDefault >= 0 ? this.rangeDefault : Math.round((this.rangeMax > 0 ? this.rangeMax : 1000) / 2);
     }
   }
 
@@ -57,6 +64,35 @@ export struct BatteryInputDialog {
         .onChange((value: number, mode: SliderChangeMode) => {
           this.battery = Math.round(value);
         })
+
+      if (this.showRange) {
+        Row() {
+          Text($r('app.string.session_range_label'))
+            .fontSize(14)
+            .fontColor($r('app.color.text_secondary'))
+          Blank()
+          Text(`${this.range}km`)
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.charge_color'))
+        }
+        .width('100%')
+
+        Slider({
+          value: this.range,
+          min: 0,
+          max: this.rangeMax > 0 ? this.rangeMax : 1000,
+          step: 1,
+          style: SliderStyle.OutSet
+        })
+          .blockColor($r('app.color.charge_color'))
+          .selectedColor($r('app.color.charge_color'))
+          .trackColor($r('app.color.divider'))
+          .width('100%')
+          .onChange((value: number, mode: SliderChangeMode) => {
+            this.range = Math.round(value);
+          })
+      }
 
       if (this.showNote) {
         Column({ space: 6 }) {
@@ -104,7 +140,7 @@ export struct BatteryInputDialog {
               this.onInvalid();
               return;
             }
-            this.onConfirm(this.battery, this.note);
+            this.onConfirm(this.battery, this.note, this.range);
             this.controller.close();
           })
       }

@@ -37,7 +37,7 @@ export class DeviceRepository {
     return count;
   }
 
-  async insert(name: string, icon: string): Promise<number> {
+  async insert(name: string, icon: string, capacity?: number, rangeRated?: number, statMode?: string): Promise<number> {
     const store: relationalStore.RdbStore = this.db.getStore();
     const createdAt: number = Date.now();
     const values: relationalStore.ValuesBucket = {
@@ -45,16 +45,22 @@ export class DeviceRepository {
       'icon': icon,
       'sort_order': 0,
       'archived': 0,
-      'created_at': createdAt
+      'created_at': createdAt,
+      'battery_capacity': capacity ?? 0,
+      'range_rated': rangeRated ?? 0,
+      'stat_mode': statMode ?? ''
     };
     return await store.insert('devices', values);
   }
 
-  async update(id: number, name: string, icon: string): Promise<void> {
+  async update(id: number, name: string, icon: string, capacity?: number, rangeRated?: number, statMode?: string): Promise<void> {
     const store: relationalStore.RdbStore = this.db.getStore();
     const values: relationalStore.ValuesBucket = {
       'name': name,
-      'icon': icon
+      'icon': icon,
+      'battery_capacity': capacity ?? 0,
+      'range_rated': rangeRated ?? 0,
+      'stat_mode': statMode ?? ''
     };
     const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('devices');
     pred.equalTo('id', id);
@@ -81,6 +87,12 @@ export class DeviceRepository {
       d.sortOrder = resultSet.getLong(resultSet.getColumnIndex('sort_order'));
       d.archived = resultSet.getLong(resultSet.getColumnIndex('archived')) !== 0;
       d.createdAt = resultSet.getLong(resultSet.getColumnIndex('created_at'));
+      const capIdx: number = resultSet.getColumnIndex('battery_capacity');
+      d.batteryCapacity = capIdx >= 0 ? resultSet.getLong(capIdx) : 0;
+      const rangeIdx: number = resultSet.getColumnIndex('range_rated');
+      d.rangeRated = rangeIdx >= 0 ? resultSet.getLong(rangeIdx) : 0;
+      const modeIdx: number = resultSet.getColumnIndex('stat_mode');
+      d.statMode = modeIdx >= 0 ? resultSet.getString(modeIdx) : '';
       list.push(d);
     }
     resultSet.close();

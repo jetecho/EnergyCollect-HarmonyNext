@@ -4,7 +4,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { SessionItem } from '../../components/SessionItem';
 import { TrendChart } from '../../components/LineChart';
 import { SessionBarChart } from '../../components/SessionBarChart';
-import { Device } from '../../model/Device';
+import { Device, isNev } from '../../model/Device';
 import { Session } from '../../model/Session';
 import { ChartPoint } from '../../model/ChartPoint';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
@@ -22,6 +22,7 @@ export struct HistoryTab {
   @State totalSessions: number = 0;
   @State totalDrain: number = 0;
   @State totalCharge: number = 0;
+  @State statUnit: string = '%';
 
   private deviceRepo: DeviceRepository = new DeviceRepository();
   private sessionRepo: SessionRepository = new SessionRepository();
@@ -55,8 +56,18 @@ export struct HistoryTab {
     this.sessions = sessions;
     this.chartPoints = CalcUtil.toChartPoints(sessions);
     this.totalSessions = sessions.length;
-    this.totalDrain = CalcUtil.totalDrain(sessions);
-    this.totalCharge = CalcUtil.totalCharge(sessions);
+    const dev: Device | null = this.findDevice(this.filterDeviceId);
+    const nev: boolean = dev !== null && isNev(dev.icon);
+    const cap: number = dev !== null ? dev.batteryCapacity : 0;
+    if (nev && cap > 0) {
+      this.totalDrain = CalcUtil.totalDrain(sessions) * cap / 100;
+      this.totalCharge = CalcUtil.totalCharge(sessions) * cap / 100;
+      this.statUnit = 'kWh';
+    } else {
+      this.totalDrain = CalcUtil.totalDrain(sessions);
+      this.totalCharge = CalcUtil.totalCharge(sessions);
+      this.statUnit = '%';
+    }
   }
 
   private findDevice(id: number): Device | null {
@@ -163,8 +174,8 @@ export struct HistoryTab {
       Column() {
         StatCard({
           label: $r('app.string.history_total_charge'),
-          value: `${this.totalCharge}`,
-          unit: '%',
+          value: this.statUnit === 'kWh' ? this.totalCharge.toFixed(1) : `${this.totalCharge}`,
+          unit: this.statUnit,
           valueColor: $r('app.color.charge_color')
         })
       }
@@ -172,8 +183,8 @@ export struct HistoryTab {
       Column() {
         StatCard({
           label: $r('app.string.history_total_drain'),
-          value: `${this.totalDrain}`,
-          unit: '%',
+          value: this.statUnit === 'kWh' ? this.totalDrain.toFixed(1) : `${this.totalDrain}`,
+          unit: this.statUnit,
           valueColor: $r('app.color.danger')
         })
       }

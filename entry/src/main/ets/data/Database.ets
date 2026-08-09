@@ -13,7 +13,10 @@ const SQL_CREATE_DEVICES: string =
   'icon TEXT NOT NULL, ' +
   'sort_order INTEGER DEFAULT 0, ' +
   'archived INTEGER DEFAULT 0, ' +
-  'created_at INTEGER)';
+  'created_at INTEGER, ' +
+  'battery_capacity INTEGER DEFAULT 0, ' +
+  'range_rated INTEGER DEFAULT 0, ' +
+  'stat_mode TEXT DEFAULT "")';
 
 const SQL_CREATE_SESSIONS: string =
   'CREATE TABLE IF NOT EXISTS sessions (' +
@@ -25,13 +28,23 @@ const SQL_CREATE_SESSIONS: string =
   'start_time INTEGER NOT NULL, ' +
   'end_time INTEGER, ' +
   'note TEXT, ' +
-  'created_at INTEGER)';
+  'created_at INTEGER, ' +
+  'start_range INTEGER DEFAULT -1, ' +
+  'end_range INTEGER DEFAULT -1)';
 
 const SQL_INDEX_SESSION_DEVICE: string =
   'CREATE INDEX IF NOT EXISTS idx_sessions_device ON sessions(device_id)';
 
 const SQL_INDEX_SESSION_TIME: string =
   'CREATE INDEX IF NOT EXISTS idx_sessions_time ON sessions(start_time)';
+
+const SQL_ALTERS: string[] = [
+  'ALTER TABLE devices ADD COLUMN battery_capacity INTEGER DEFAULT 0',
+  'ALTER TABLE devices ADD COLUMN range_rated INTEGER DEFAULT 0',
+  "ALTER TABLE devices ADD COLUMN stat_mode TEXT DEFAULT ''",
+  'ALTER TABLE sessions ADD COLUMN start_range INTEGER DEFAULT -1',
+  'ALTER TABLE sessions ADD COLUMN end_range INTEGER DEFAULT -1'
+];
 
 export class Database {
   private static instance: Database | null = null;
@@ -56,6 +69,12 @@ export class Database {
     await this.store.executeSql(SQL_CREATE_SESSIONS);
     await this.store.executeSql(SQL_INDEX_SESSION_DEVICE);
     await this.store.executeSql(SQL_INDEX_SESSION_TIME);
+    for (const sql of SQL_ALTERS) {
+      try {
+        await this.store.executeSql(sql);
+      } catch (e) {
+      }
+    }
   }
 
   getStore(): relationalStore.RdbStore {

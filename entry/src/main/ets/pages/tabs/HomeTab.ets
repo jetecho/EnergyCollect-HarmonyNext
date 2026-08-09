@@ -3,7 +3,7 @@ import { StatCard } from '../../components/StatCard';
 import { EmptyState } from '../../components/EmptyState';
 import { BatteryInputDialog } from '../../components/BatteryInputDialog';
 import { DeviceSheet } from '../../components/DeviceSheet';
-import { Device, iconToResource } from '../../model/Device';
+import { Device, iconToResource, isNev } from '../../model/Device';
 import { Session } from '../../model/Session';
 import { SessionType } from '../../model/SessionType';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
@@ -17,6 +17,7 @@ export class DeviceCardData {
   device: Device = new Device();
   activeSession: Session | null = null;
   currentBattery: number = -1;
+  currentRange: number = -1;
   todayCount: number = 0;
   todayDrain: number = 0;
   chargeGain: number = 0;
@@ -25,8 +26,8 @@ export class DeviceCardData {
 @Component
 export struct DeviceCard {
   @ObjectLink card: DeviceCardData;
-  onStart: (deviceId: number, type: SessionType, defaultBattery: number) => void = (): void => {};
-  onEnd: (session: Session) => void = (): void => {};
+  onStart: (device: Device, type: SessionType, defaultBattery: number, defaultRange: number) => void = (): void => {};
+  onEnd: (session: Session, device: Device) => void = (): void => {};
   @State elapsedText: string = '00:00:00';
   private timerId: number = -1;
 
@@ -104,7 +105,7 @@ export struct DeviceCard {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
         if (this.card.currentBattery >= 0) {
-          Row({ space: 3 }) {
+          Row({ space: 4 }) {
             Image($r('app.media.ic_lightning'))
               .width(13)
               .height(13)
@@ -113,6 +114,14 @@ export struct DeviceCard {
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.text_secondary'))
+            if (isNev(this.card.device.icon) && this.card.currentRange >= 0) {
+              Text('·')
+                .fontSize(13)
+                .fontColor($r('app.color.text_tertiary'))
+              Text(`${this.card.currentRange}km`)
+                .fontSize(13)
+                .fontColor($r('app.color.text_secondary'))
+            }
           }
         }
       }
@@ -159,7 +168,7 @@ export struct DeviceCard {
       .borderRadius(14)
       .backgroundColor($r('app.color.usage_bg'))
       .onClick(() => {
-        this.onStart(this.card.device.id, SessionType.USAGE, this.card.currentBattery);
+        this.onStart(this.card.device, SessionType.USAGE, this.card.currentBattery, this.card.currentRange);
       })
 
       Column({ space: 8 }) {
@@ -186,7 +195,7 @@ export struct DeviceCard {
       .borderRadius(14)
       .backgroundColor($r('app.color.charge_bg'))
       .onClick(() => {
-        this.onStart(this.card.device.id, SessionType.CHARGING, this.card.currentBattery);
+        this.onStart(this.card.device, SessionType.CHARGING, this.card.currentBattery, this.card.currentRange);
       })
     }
     .width('100%')
@@ -249,7 +258,7 @@ export struct DeviceCard {
         .backgroundColor($r('app.color.brand'))
         .fontColor($r('app.color.text_on_brand'))
         .onClick(() => {
-          this.onEnd(s);
+          this.onEnd(s, this.card.device);
         })
     }
     .width('100%')
@@ -317,12 +326,15 @@ export struct HomeTab {
       const active: Session | null = await this.sessionRepo.getActive(d.id);
       const sessions: Session[] = await this.sessionRepo.listFiltered(d.id, -1);
       let currentBattery: number = -1;
+      let currentRange: number = -1;
       if (active !== null) {
         currentBattery = active.startBattery;
+        currentRange = active.startRange;
       } else {
         for (const s of sessions) {
           if (s.isCompleted()) {
             currentBattery = s.endBattery;
+            currentRange = s.endRange;
             break;
           }
         }
@@ -331,6 +343,7 @@ export struct HomeTab {
       card.device = d;
       card.activeSession = active;
       card.currentBattery = currentBattery;
+      card.currentRange = currentRange;
       card.todayCount = CalcUtil.countToday(sessions, startToday);
       card.todayDrain = CalcUtil.drainToday(sessions, startToday);
       card.chargeGain = CalcUtil.chargeToday(sessions, startToday);
@@ -344,15 +357,19 @@ export struct HomeTab {
     AppStorage.setOrCreate('dataVersion', v + 1);
   }
 
-  private openStartDialog(deviceId: number, type: SessionType, defaultBattery: number): void {
+  private openStartDialog(device: Device, type: SessionType, defaultBattery: number, defaultRange: number): void {
+    const nev: boolean = isNev(device.icon);
     this.startDialogController = new CustomDialogController({
       builder: BatteryInputDialog({
         title: $r('app.string.battery_start_title'),
         maxValue: 100,
         defaultValue: defaultBattery,
+        showRange: nev,
+        rangeMax: device.rangeRated,
+        rangeDefault: defaultRange,
         showNote: true,
-        onConfirm: (battery: number, note: string): void => {
-          this.confirmStart(deviceId, type, battery, note);
+        onConfirm: (battery: number, note: string, range: number): void => {
+          this.confirmStart(device.id, type, battery, note, nev ? range : -1);
         }
       }),
       alignment: DialogAlignment.Center,
@@ -361,16 +378,20 @@ export struct HomeTab {
     this.startDialogController.open();
   }
 
-  private openEndDialog(session: Session): void {
+  private openEndDialog(session: Session, device: Device): void {
+    const nev: boolean = isNev(device.icon);
     const isCharge: boolean = session.type === SessionType.CHARGING;
     this.endDialogController = new CustomDialogController({
       builder: BatteryInputDialog({
         title: $r('app.string.battery_end_title'),
         maxValue: isCharge ? 100 : session.startBattery,
         minValue: isCharge ? session.startBattery : 0,
+        showRange: nev,
+        rangeMax: device.rangeRated,
+        rangeDefault: session.startRange >= 0 ? session.startRange : -1,
         showNote: false,
-        onConfirm: (battery: number, note: string): void => {
-          this.confirmEnd(session.id, battery);
+        onConfirm: (battery: number, note: string, range: number): void => {
+          this.confirmEnd(session.id, battery, nev ? range : -1);
         },
         onInvalid: (): void => {
           promptAction.showToast({ message: $r('app.string.toast_end_too_high') });
@@ -382,11 +403,11 @@ export struct HomeTab {
     this.endDialogController.open();
   }
 
-  private async confirmStart(deviceId: number, type: SessionType, battery: number, note: string): Promise<void> {
+  private async confirmStart(deviceId: number, type: SessionType, battery: number, note: string, range: number): Promise<void> {
     if (type === SessionType.USAGE) {
       await this.maybeInsertIdleDrain(deviceId, battery);
     }
-    await this.sessionRepo.startSession(deviceId, type, battery, note);
+    await this.sessionRepo.startSession(deviceId, type, battery, note, range);
     this.bump();
     this.loadData();
   }
@@ -409,14 +430,14 @@ export struct HomeTab {
     }
   }
 
-  private async confirmEnd(id: number, battery: number): Promise<void> {
-    await this.sessionRepo.endSession(id, battery);
+  private async confirmEnd(id: number, battery: number, range: number): Promise<void> {
+    await this.sessionRepo.endSession(id, battery, range);
     this.bump();
     this.loadData();
   }
 
-  private async saveDevice(name: string, icon: string): Promise<void> {
-    await this.deviceRepo.insert(name, icon);
+  private async saveDevice(name: string, icon: string, capacity: number, rangeRated: number, statMode: string): Promise<void> {
+    await this.deviceRepo.insert(name, icon, capacity, rangeRated, statMode);
     this.showDeviceSheet = false;
     this.bump();
     this.loadData();
@@ -432,11 +453,11 @@ export struct HomeTab {
             ForEach(this.cards, (card: DeviceCardData) => {
               DeviceCard({
                 card: card,
-                onStart: (deviceId: number, type: SessionType, defaultBattery: number): void => {
-                  this.openStartDialog(deviceId, type, defaultBattery);
+                onStart: (device: Device, type: SessionType, defaultBattery: number, defaultRange: number): void => {
+                  this.openStartDialog(device, type, defaultBattery, defaultRange);
                 },
-                onEnd: (session: Session): void => {
-                  this.openEndDialog(session);
+                onEnd: (session: Session, device: Device): void => {
+                  this.openEndDialog(session, device);
                 }
               })
             }, (card: DeviceCardData) => `${card.device.id}_${card.activeSession !== null ? card.activeSession.id : 'none'}`)
@@ -495,8 +516,8 @@ export struct HomeTab {
       initialName: '',
       initialIcon: 'other',
       canDelete: false,
-      onSave: (name: string, icon: string): void => {
-        this.saveDevice(name, icon);
+      onSave: (name: string, icon: string, capacity: number, rangeRated: number, statMode: string): void => {
+        this.saveDevice(name, icon, capacity, rangeRated, statMode);
       },
       onClose: (): void => {
         this.showDeviceSheet = false;

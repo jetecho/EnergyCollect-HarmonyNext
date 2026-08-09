@@ -33,7 +33,7 @@ export class SessionRepository {
     return list[0];
   }
 
-  async startSession(deviceId: number, type: SessionType, startBattery: number, note: string): Promise<number> {
+  async startSession(deviceId: number, type: SessionType, startBattery: number, note: string, startRange?: number): Promise<number> {
     const store: relationalStore.RdbStore = this.db.getStore();
     const now: number = Date.now();
     const values: relationalStore.ValuesBucket = {
@@ -42,12 +42,13 @@ export class SessionRepository {
       'start_battery': startBattery,
       'start_time': now,
       'note': note,
-      'created_at': now
+      'created_at': now,
+      'start_range': startRange ?? -1
     };
     return await store.insert('sessions', values);
   }
 
-  async insertCompleted(deviceId: number, type: SessionType, startBattery: number, endBattery: number, startTime: number, endTime: number): Promise<number> {
+  async insertCompleted(deviceId: number, type: SessionType, startBattery: number, endBattery: number, startTime: number, endTime: number, startRange?: number, endRange?: number): Promise<number> {
     const store: relationalStore.RdbStore = this.db.getStore();
     const values: relationalStore.ValuesBucket = {
       'device_id': deviceId,
@@ -57,17 +58,20 @@ export class SessionRepository {
       'start_time': startTime,
       'end_time': endTime,
       'note': '',
-      'created_at': Date.now()
+      'created_at': Date.now(),
+      'start_range': startRange ?? -1,
+      'end_range': endRange ?? -1
     };
     return await store.insert('sessions', values);
   }
 
-  async endSession(id: number, endBattery: number): Promise<void> {
+  async endSession(id: number, endBattery: number, endRange?: number): Promise<void> {
     const store: relationalStore.RdbStore = this.db.getStore();
     const now: number = Date.now();
     const values: relationalStore.ValuesBucket = {
       'end_battery': endBattery,
-      'end_time': now
+      'end_time': now,
+      'end_range': endRange ?? -1
     };
     const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('sessions');
     pred.equalTo('id', id);
@@ -107,6 +111,10 @@ export class SessionRepository {
       s.endTime = resultSet.getLong(resultSet.getColumnIndex('end_time'));
       s.note = resultSet.getString(resultSet.getColumnIndex('note'));
       s.createdAt = resultSet.getLong(resultSet.getColumnIndex('created_at'));
+      const srIdx: number = resultSet.getColumnIndex('start_range');
+      s.startRange = srIdx >= 0 ? resultSet.getLong(srIdx) : -1;
+      const erIdx: number = resultSet.getColumnIndex('end_range');
+      s.endRange = erIdx >= 0 ? resultSet.getLong(erIdx) : -1;
       list.push(s);
     }
     resultSet.close();
