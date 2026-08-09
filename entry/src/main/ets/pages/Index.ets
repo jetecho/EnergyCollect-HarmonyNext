@@ -10,37 +10,41 @@ struct Index {
   private controller: HdsTabsController = new HdsTabsController();
 
   build() {
-    HdsTabs({ controller: this.controller, index: this.currentTab }) {
-      TabContent() {
-        HomeTab()
-      }
-        .tabBar(this.buildTabBar($r('app.media.ic_home'), $r('app.string.tab_home')))
+    Column() {
+      HdsTabs({ controller: this.controller, index: this.currentTab }) {
+        TabContent() {
+          HomeTab()
+        }
+          .tabBar(this.buildTabBar($r('app.media.ic_home'), $r('app.string.tab_home')))
 
-      TabContent() {
-        HistoryTab()
-      }
-        .tabBar(this.buildTabBar($r('app.media.ic_history'), $r('app.string.tab_history')))
+        TabContent() {
+          HistoryTab()
+        }
+          .tabBar(this.buildTabBar($r('app.media.ic_history'), $r('app.string.tab_history')))
 
-      TabContent() {
-        MineTab()
+        TabContent() {
+          MineTab()
+        }
+          .tabBar(this.buildTabBar($r('app.media.ic_mine'), $r('app.string.tab_mine')))
       }
-        .tabBar(this.buildTabBar($r('app.media.ic_mine'), $r('app.string.tab_mine')))
+      .barPosition(BarPosition.End)
+      .barOverlap(true)
+      .scrollable(true)
+      .animationDuration(300)
+      .barFloatingStyle({
+        barBottomMargin: 16,
+        adaptToHandedness: true,
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        }
+      })
+      .onChange((index: number) => {
+        this.currentTab = index;
+      })
     }
-    .barPosition(BarPosition.End)
-    .barOverlap(true)
-    .scrollable(true)
-    .animationDuration(300)
-    .barFloatingStyle({
-      barBottomMargin: 16,
-      adaptToHandedness: true,
-      systemMaterialEffect: {
-        materialType: hdsMaterial.MaterialType.ADAPTIVE,
-        materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
-      }
-    })
-    .onChange((index: number) => {
-      this.currentTab = index;
-    })
+    .width('100%')
+    .height('100%')
   }
 
   private buildTabBar(icon: Resource, label: ResourceStr): BottomTabBarStyle {
