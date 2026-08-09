@@ -63,9 +63,27 @@ export struct SessionItem {
             .backgroundColor(this.typeBg())
             .borderRadius(4)
             .padding({ left: 5, right: 5, top: 1, bottom: 1 })
-          Text(DateTimeUtil.formatDateTime(this.session.startTime))
+          Blank()
+          if (this.session.isCompleted()) {
+            Text(DateTimeUtil.formatDuration(this.session.endTime - this.session.startTime))
+              .fontSize(11)
+              .fontColor($r('app.color.text_secondary'))
+          }
+        }
+        .width('100%')
+
+        Row({ space: 6 }) {
+          Text(DateTimeUtil.formatDateTimeMs(this.session.startTime))
             .fontSize(11)
             .fontColor($r('app.color.text_tertiary'))
+          if (this.session.isCompleted()) {
+            Text('→')
+              .fontSize(11)
+              .fontColor($r('app.color.text_tertiary'))
+            Text(DateTimeUtil.formatDateTimeMs(this.session.endTime))
+              .fontSize(11)
+              .fontColor($r('app.color.text_tertiary'))
+          }
         }
         .width('100%')
 
@@ -73,13 +91,6 @@ export struct SessionItem {
       }
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
-
-      if (this.session.isCompleted()) {
-        Text(DateTimeUtil.formatDuration(this.session.endTime - this.session.startTime))
-          .fontSize(12)
-          .fontColor($r('app.color.text_secondary'))
-          .margin({ top: 4 })
-      }
     }
     .width('100%')
     .padding({ left: 14, right: 14, top: 12, bottom: 12 })

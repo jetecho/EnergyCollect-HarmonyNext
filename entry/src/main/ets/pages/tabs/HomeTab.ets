@@ -377,9 +377,30 @@ export struct HomeTab {
   }
 
   private async confirmStart(deviceId: number, type: SessionType, battery: number, note: string): Promise<void> {
+    if (type === SessionType.USAGE) {
+      await this.maybeInsertIdleDrain(deviceId, battery);
+    }
     await this.sessionRepo.startSession(deviceId, type, battery, note);
     this.bump();
     this.loadData();
+  }
+
+  private async maybeInsertIdleDrain(deviceId: number, startBattery: number): Promise<void> {
+    const sessions: Session[] = await this.sessionRepo.listFiltered(deviceId, -1);
+    let lastCompleted: Session | null = null;
+    for (const s of sessions) {
+      if (s.isCompleted()) {
+        lastCompleted = s;
+        break;
+      }
+    }
+    if (lastCompleted !== null && startBattery < lastCompleted.endBattery) {
+      await this.sessionRepo.insertCompleted(
+        deviceId, SessionType.IDLE,
+        lastCompleted.endBattery, startBattery,
+        lastCompleted.endTime, Date.now()
+      );
+    }
   }
 
   private async confirmEnd(id: number, battery: number): Promise<void> {

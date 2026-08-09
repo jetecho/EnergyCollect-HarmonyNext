@@ -39,6 +39,9 @@ export struct SessionBarChart {
       if (s.type === SessionType.CHARGING) {
         values.add(new BarEntry(i, s.endBattery - s.startBattery));
         colors.push(0xFF1FA978);
+      } else if (s.type === SessionType.IDLE) {
+        values.add(new BarEntry(i, CalcUtil.consumption(s)));
+        colors.push(0xFFF08200);
       } else {
         values.add(new BarEntry(i, CalcUtil.consumption(s)));
         colors.push(0xFFE84026);

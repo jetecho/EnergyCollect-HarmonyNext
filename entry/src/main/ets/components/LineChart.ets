@@ -16,9 +16,11 @@ export struct TrendChart {
     this.model.getDescription()?.setEnabled(false);
     this.model.getLegend()?.setEnabled(false);
     this.model.getXAxis()?.setPosition(XAxisPosition.BOTTOM);
+    this.model.getXAxis()?.setDrawGridLines(false);
     this.model.getAxisRight()?.setEnabled(false);
     this.model.getAxisLeft()?.setAxisMinimum(0);
     this.model.getAxisLeft()?.setAxisMaximum(100);
+    this.model.getAxisLeft()?.setDrawGridLines(true);
     this.model.setScaleEnabled(false);
     this.model.setDragXEnabled(true);
   }
@@ -32,7 +34,7 @@ export struct TrendChart {
     set.setColorByColor(0xFF0A59F7);
     set.setLineWidth(2);
     set.setMode(Mode.LINEAR);
-    set.setCircleColor(0xFF0A59F7);
+    set.setDrawCircles(false);
     set.setDrawValues(false);
     const list: JArrayList<ILineDataSet> = new JArrayList<ILineDataSet>();
     list.add(set);

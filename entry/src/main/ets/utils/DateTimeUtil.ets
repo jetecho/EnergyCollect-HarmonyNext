@@ -12,6 +12,26 @@ export class DateTimeUtil {
       DateTimeUtil.pad(d.getHours()) + ':' + DateTimeUtil.pad(d.getMinutes());
   }
 
+  static pad3(n: number): string {
+    if (n < 10) {
+      return '00' + n;
+    }
+    if (n < 100) {
+      return '0' + n;
+    }
+    return '' + n;
+  }
+
+  static formatDateTimeMs(timestamp: number): string {
+    if (timestamp <= 0) {
+      return '--';
+    }
+    const d: Date = new Date(timestamp);
+    return DateTimeUtil.pad(d.getMonth() + 1) + '-' + DateTimeUtil.pad(d.getDate()) + ' ' +
+      DateTimeUtil.pad(d.getHours()) + ':' + DateTimeUtil.pad(d.getMinutes()) + ':' +
+      DateTimeUtil.pad(d.getSeconds()) + '.' + DateTimeUtil.pad3(d.getMilliseconds());
+  }
+
   static formatDate(timestamp: number): string {
     if (timestamp <= 0) {
       return '--';
