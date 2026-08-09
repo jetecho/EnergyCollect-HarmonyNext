@@ -41,7 +41,11 @@ export struct HistoryTab {
     const devices: Device[] = await this.deviceRepo.listAll(false);
     this.devices = devices;
     if (this.filterDeviceId <= 0) {
-      if (devices.length > 0) {
+      const defaultId: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
+      const hasDefault: boolean = defaultId > 0 && devices.some((d: Device): boolean => d.id === defaultId);
+      if (hasDefault) {
+        this.filterDeviceId = defaultId;
+      } else if (devices.length > 0) {
         this.filterDeviceId = devices[0].id;
       } else {
         this.sessions = [];

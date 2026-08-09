@@ -28,6 +28,8 @@ export struct MineTab {
   @State sheetCapacity: number = 0;
   @State sheetRange: number = 0;
   @State sheetStatMode: string = 'CLTC';
+  @State sheetIsDefault: boolean = false;
+  @StorageProp('defaultDeviceId') defaultDeviceId: number = -1;
 
   private deviceRepo: DeviceRepository = new DeviceRepository();
   private sessionRepo: SessionRepository = new SessionRepository();
@@ -61,6 +63,7 @@ export struct MineTab {
     this.sheetCapacity = 0;
     this.sheetRange = 0;
     this.sheetStatMode = 'CLTC';
+    this.sheetIsDefault = false;
     this.sheetTitle = $r('app.string.dialog_new_device_title');
     this.sheetCanDelete = false;
     this.showSheet = true;
@@ -73,6 +76,7 @@ export struct MineTab {
     this.sheetCapacity = d.batteryCapacity;
     this.sheetRange = d.rangeRated;
     this.sheetStatMode = d.statMode.length > 0 ? d.statMode : 'CLTC';
+    this.sheetIsDefault = d.id === this.defaultDeviceId;
     this.sheetTitle = $r('app.string.dialog_edit_device_title');
     this.sheetCanDelete = true;
     this.showSheet = true;
@@ -89,6 +93,16 @@ export struct MineTab {
     } else {
       await this.deviceRepo.update(this.sheetId, name, icon, capacity, rangeRated, statMode);
     }
+    this.showSheet = false;
+    this.bump();
+  }
+
+  private async onSetDefaultDevice(): Promise<void> {
+    if (this.sheetId <= 0) {
+      return;
+    }
+    AppStorage.setOrCreate('defaultDeviceId', this.sheetId);
+    await PreferencesUtil.setDefaultDeviceId(this.sheetId);
     this.showSheet = false;
     this.bump();
   }
@@ -265,11 +279,15 @@ export struct MineTab {
       initialRange: this.sheetRange,
       initialStatMode: this.sheetStatMode,
       canDelete: this.sheetCanDelete,
+      isDefault: this.sheetIsDefault,
       onSave: (name: string, icon: string, capacity: number, rangeRated: number, statMode: string): void => {
         this.onSaveDevice(name, icon, capacity, rangeRated, statMode);
       },
       onDelete: (): void => {
         this.confirmDeleteDevice();
+      },
+      onSetDefault: (): void => {
+        this.onSetDefaultDevice();
       },
       onClose: (): void => {
         this.showSheet = false;
@@ -352,6 +370,15 @@ export struct MineTab {
         .layoutWeight(1)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
+      if (d.id === this.defaultDeviceId) {
+        Text($r('app.string.device_default_badge'))
+          .fontSize(11)
+          .fontColor($r('app.color.brand'))
+          .backgroundColor($r('app.color.brand_light'))
+          .borderRadius(4)
+          .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+          .margin({ right: 8 })
+      }
 
       Text(iconToNameRes(d.icon))
         .fontSize(12)

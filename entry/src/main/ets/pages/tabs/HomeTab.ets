@@ -320,21 +320,38 @@ export struct HomeTab {
 
   private async loadData(): Promise<void> {
     const devices: Device[] = await this.deviceRepo.listAll(false);
+    const defaultId: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
+    const ordered: Device[] = devices.slice().sort((a: Device, b: Device): number => {
+      if (a.id === defaultId) {
+        return -1;
+      }
+      if (b.id === defaultId) {
+        return 1;
+      }
+      return 0;
+    });
     const startToday: number = DateTimeUtil.startOfToday();
     const cards: DeviceCardData[] = [];
-    for (const d of devices) {
+    for (const d of ordered) {
       const active: Session | null = await this.sessionRepo.getActive(d.id);
       const sessions: Session[] = await this.sessionRepo.listFiltered(d.id, -1);
-      let currentBattery: number = -1;
+      let currentBattery: number = 100;
       let currentRange: number = -1;
+      if (isNev(d.icon) && d.rangeRated > 0) {
+        currentRange = d.rangeRated;
+      }
       if (active !== null) {
         currentBattery = active.startBattery;
-        currentRange = active.startRange;
+        if (active.startRange >= 0) {
+          currentRange = active.startRange;
+        }
       } else {
         for (const s of sessions) {
           if (s.isCompleted()) {
             currentBattery = s.endBattery;
-            currentRange = s.endRange;
+            if (s.endRange >= 0) {
+              currentRange = s.endRange;
+            }
             break;
           }
         }

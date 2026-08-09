@@ -88,6 +88,15 @@ export struct SessionItem {
         .width('100%')
 
         this.BatteryRow()
+
+        if (this.session.note.length > 0) {
+          Text(this.session.note)
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+            .maxLines(2)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .width('100%')
+        }
       }
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)

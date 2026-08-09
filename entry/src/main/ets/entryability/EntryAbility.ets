@@ -34,10 +34,12 @@ export default class EntryAbility extends UIAbility {
 
     const colorMode: number = await PreferencesUtil.getColorMode();
     const currentDeviceId: number = await PreferencesUtil.getCurrentDeviceId();
+    const defaultDeviceId: number = await PreferencesUtil.getDefaultDeviceId();
     const systemColorMode: number = this.getSystemColorMode();
 
     AppStorage.setOrCreate('colorMode', colorMode);
     AppStorage.setOrCreate('currentDeviceId', currentDeviceId > 0 ? currentDeviceId : -1);
+    AppStorage.setOrCreate('defaultDeviceId', defaultDeviceId > 0 ? defaultDeviceId : -1);
     AppStorage.setOrCreate('dataVersion', 0);
     AppStorage.setOrCreate('systemColorMode', systemColorMode);
 

@@ -9,8 +9,10 @@ export struct DeviceSheet {
   @Prop initialRange: number = 0;
   @Prop initialStatMode: string = 'CLTC';
   @Prop canDelete: boolean = false;
+  @Prop isDefault: boolean = false;
   onSave: (name: string, icon: string, capacity: number, rangeRated: number, statMode: string) => void = () => {};
   onDelete: () => void = () => {};
+  onSetDefault: () => void = () => {};
   onClose: () => void = () => {};
   onInvalid: () => void = () => {};
   @State name: string = '';
@@ -107,6 +109,17 @@ export struct DeviceSheet {
             .fontColor($r('app.color.danger'))
             .onClick(() => {
               this.onDelete();
+            })
+        }
+        if (this.canDelete && !this.isDefault) {
+          Button($r('app.string.device_set_default'))
+            .type(ButtonType.Normal)
+            .borderRadius(12)
+            .layoutWeight(1)
+            .backgroundColor($r('app.color.brand_light'))
+            .fontColor($r('app.color.brand'))
+            .onClick(() => {
+              this.onSetDefault();
             })
         }
         Button($r('app.string.action_save'))

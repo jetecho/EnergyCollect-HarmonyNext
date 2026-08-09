@@ -257,6 +257,14 @@
       "value": "WLTC"
     },
     {
+      "name": "device_set_default",
+      "value": "设为默认设备"
+    },
+    {
+      "name": "device_default_badge",
+      "value": "默认"
+    },
+    {
       "name": "device_type_ev",
       "value": "电动车"
     },

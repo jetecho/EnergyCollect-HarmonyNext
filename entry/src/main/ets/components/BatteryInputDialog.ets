@@ -38,17 +38,26 @@ export struct BatteryInputDialog {
         .fontColor($r('app.color.text_primary'))
         .width('100%')
 
-      Row() {
+      Column({ space: 4 }) {
+        Row() {
+          Text(`${this.battery}`)
+            .fontSize(40)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.brand'))
+          Text('%')
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.brand'))
+            .margin({ bottom: 6 })
+        }
+        .alignItems(VerticalAlign.Bottom)
+
         Text($r('app.string.battery_label'))
-          .fontSize(14)
-          .fontColor($r('app.color.text_secondary'))
-        Blank()
-        Text(`${this.battery}%`)
-          .fontSize(28)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.brand'))
+          .fontSize(12)
+          .fontColor($r('app.color.text_tertiary'))
       }
       .width('100%')
+      .alignItems(HorizontalAlign.Center)
 
       Slider({
         value: this.battery,
@@ -63,20 +72,32 @@ export struct BatteryInputDialog {
         .width('100%')
         .onChange((value: number, mode: SliderChangeMode) => {
           this.battery = Math.round(value);
+          if (this.showRange && this.rangeMax > 0) {
+            this.range = Math.round(this.battery * this.rangeMax / 100);
+          }
         })
 
       if (this.showRange) {
-        Row() {
+        Column({ space: 4 }) {
+          Row() {
+            Text(`${this.range}`)
+              .fontSize(28)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.charge_color'))
+            Text('km')
+              .fontSize(14)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.charge_color'))
+              .margin({ bottom: 4 })
+          }
+          .alignItems(VerticalAlign.Bottom)
+
           Text($r('app.string.session_range_label'))
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-          Blank()
-          Text(`${this.range}km`)
-            .fontSize(20)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.charge_color'))
+            .fontSize(12)
+            .fontColor($r('app.color.text_tertiary'))
         }
         .width('100%')
+        .alignItems(HorizontalAlign.Center)
 
         Slider({
           value: this.range,
@@ -97,7 +118,7 @@ export struct BatteryInputDialog {
       if (this.showNote) {
         Column({ space: 6 }) {
           Text($r('app.string.battery_note_label'))
-            .fontSize(14)
+            .fontSize(13)
             .fontColor($r('app.color.text_secondary'))
             .width('100%')
           TextInput({
@@ -120,6 +141,7 @@ export struct BatteryInputDialog {
           .type(ButtonType.Normal)
           .borderRadius(12)
           .layoutWeight(1)
+          .height(44)
           .backgroundColor($r('app.color.bg_primary'))
           .fontColor($r('app.color.text_secondary'))
           .onClick(() => {
@@ -129,6 +151,7 @@ export struct BatteryInputDialog {
           .type(ButtonType.Normal)
           .borderRadius(12)
           .layoutWeight(1)
+          .height(44)
           .backgroundColor($r('app.color.brand'))
           .fontColor($r('app.color.text_on_brand'))
           .onClick(() => {
@@ -147,6 +170,6 @@ export struct BatteryInputDialog {
       .width('100%')
     }
     .width('100%')
-    .padding(8)
+    .padding(16)
   }
 }

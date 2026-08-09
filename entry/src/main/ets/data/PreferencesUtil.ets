@@ -4,6 +4,7 @@ import { common } from '@kit.AbilityKit';
 const PREF_NAME: string = 'energy_collect_pref';
 const KEY_COLOR_MODE: string = 'color_mode';
 const KEY_CURRENT_DEVICE_ID: string = 'current_device_id';
+const KEY_DEFAULT_DEVICE_ID: string = 'default_device_id';
 const DEFAULT_MODE: number = -1;
 const DEFAULT_DEVICE: number = -1;
 
@@ -51,6 +52,25 @@ export class PreferencesUtil {
       return;
     }
     await PreferencesUtil.store.put(KEY_CURRENT_DEVICE_ID, id);
+    await PreferencesUtil.store.flush();
+  }
+
+  static async getDefaultDeviceId(): Promise<number> {
+    if (PreferencesUtil.store === null) {
+      return DEFAULT_DEVICE;
+    }
+    const v: preferences.ValueType = await PreferencesUtil.store.get(KEY_DEFAULT_DEVICE_ID, DEFAULT_DEVICE);
+    if (typeof v === 'number') {
+      return v;
+    }
+    return DEFAULT_DEVICE;
+  }
+
+  static async setDefaultDeviceId(id: number): Promise<void> {
+    if (PreferencesUtil.store === null) {
+      return;
+    }
+    await PreferencesUtil.store.put(KEY_DEFAULT_DEVICE_ID, id);
     await PreferencesUtil.store.flush();
   }
 }
