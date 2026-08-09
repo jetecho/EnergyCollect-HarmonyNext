@@ -2,7 +2,8 @@ import { HdsNavigation } from '@kit.UIDesignKit';
 import { StatCard } from '../../components/StatCard';
 import { EmptyState } from '../../components/EmptyState';
 import { SessionItem } from '../../components/SessionItem';
-import { LineChart } from '../../components/LineChart';
+import { TrendChart } from '../../components/LineChart';
+import { SessionBarChart } from '../../components/SessionBarChart';
 import { Device } from '../../model/Device';
 import { Session } from '../../model/Session';
 import { ChartPoint } from '../../model/ChartPoint';
@@ -74,6 +75,7 @@ export struct HistoryTab {
           this.FilterRow()
           this.StatsRow()
           this.ChartCard()
+          this.BarChartCard()
           this.ListSection()
         }
         .width('100%')
@@ -188,7 +190,24 @@ export struct HistoryTab {
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
         .width('100%')
-      LineChart({ points: this.chartPoints })
+      TrendChart({ points: this.chartPoints })
+        .width('100%')
+    }
+    .width('100%')
+    .padding(14)
+    .backgroundColor($r('app.color.bg_card'))
+    .borderRadius(16)
+  }
+
+  @Builder
+  BarChartCard() {
+    Column({ space: 8 }) {
+      Text($r('app.string.history_bar_title'))
+        .fontSize(14)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+        .width('100%')
+      SessionBarChart({ sessions: this.sessions })
         .width('100%')
     }
     .width('100%')

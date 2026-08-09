@@ -153,6 +153,10 @@
       "value": "电量趋势"
     },
     {
+      "name": "history_bar_title",
+      "value": "耗电与充电"
+    },
+    {
       "name": "session_type_usage",
       "value": "使用会话"
     },
