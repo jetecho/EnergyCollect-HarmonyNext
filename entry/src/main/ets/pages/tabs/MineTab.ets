@@ -1,6 +1,8 @@
 import { HdsNavigation } from '@kit.UIDesignKit';
 import { DeviceSheet } from '../../components/DeviceSheet';
 import { Device, iconToResource, iconToNameRes } from '../../model/Device';
+import { Session } from '../../model/Session';
+import { SessionType } from '../../model/SessionType';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
 import { SessionRepository } from '../../data/repository/SessionRepository';
 import { PreferencesUtil } from '../../data/PreferencesUtil';
@@ -8,10 +10,31 @@ import { Immersive } from '../../utils/Immersive';
 import { promptAction, window } from '@kit.ArkUI';
 import { ConfigurationConstant } from '@kit.AbilityKit';
 import { picker, fileIo } from '@kit.CoreFileKit';
+import util from '@ohos.util';
 
 interface DeviceExportRow {
   name: string;
   icon: string;
+}
+
+interface ExportDeviceV2 {
+  name: string;
+  icon: string;
+  capacity: number;
+  rangeRated: number;
+  statMode: string;
+}
+
+interface ExportSessionV2 {
+  deviceIndex: number;
+  type: number;
+  startBattery: number;
+  endBattery: number;
+  startTime: number;
+  endTime: number;
+  note: string;
+  startRange: number;
+  endRange: number;
 }
 
 @Component
@@ -184,17 +207,35 @@ export struct MineTab {
   private async exportData(): Promise<void> {
     try {
       const devices: Device[] = await this.deviceRepo.listAll(true);
-      const rows: DeviceExportRow[] = [];
-      for (const d of devices) {
-        const row: DeviceExportRow = { name: d.name, icon: d.icon };
-        rows.push(row);
+      const deviceRows: ExportDeviceV2[] = [];
+      const idToIndex: Map<number, number> = new Map<number, number>();
+      for (let i = 0; i < devices.length; i++) {
+        const d: Device = devices[i];
+        idToIndex.set(d.id, i);
+        const row: ExportDeviceV2 = {
+          name: d.name, icon: d.icon,
+          capacity: d.batteryCapacity, rangeRated: d.rangeRated, statMode: d.statMode
+        };
+        deviceRows.push(row);
+      }
+      const sessions: Session[] = await this.sessionRepo.listFiltered(0, -1);
+      const sessionRows: ExportSessionV2[] = [];
+      for (const s of sessions) {
+        const idx: number | undefined = idToIndex.get(s.deviceId);
+        if (idx !== undefined) {
+          sessionRows.push({
+            deviceIndex: idx, type: s.type, startBattery: s.startBattery, endBattery: s.endBattery,
+            startTime: s.startTime, endTime: s.endTime, note: s.note,
+            startRange: s.startRange, endRange: s.endRange
+          });
+        }
       }
       const payload: Record<string, Object> = {
         'app': 'EnergyCollect',
-        'version': 1,
+        'version': 2,
         'exportedAt': Date.now(),
-        'deviceCount': devices.length,
-        'devices': rows
+        'devices': deviceRows,
+        'sessions': sessionRows
       };
       const json: string = JSON.stringify(payload);
       const saveOptions: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
@@ -213,8 +254,101 @@ export struct MineTab {
     }
   }
 
-  private importData(): void {
-    promptAction.showToast({ message: $r('app.string.toast_import_fail') });
+  private async importData(): Promise<void> {
+    try {
+      const options: picker.DocumentSelectOptions = new picker.DocumentSelectOptions();
+      const selectPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker();
+      const uris: string[] = await selectPicker.select(options);
+      if (uris === undefined || uris === null || uris.length === 0) {
+        return;
+      }
+      const file: fileIo.File = fileIo.openSync(uris[0], fileIo.OpenMode.READ_ONLY);
+      const stat: fileIo.Stat = fileIo.statSync(file.fd);
+      const buf: ArrayBuffer = new ArrayBuffer(stat.size);
+      fileIo.readSync(file.fd, buf);
+      fileIo.closeSync(file);
+      const decoder: util.TextDecoder = util.TextDecoder.create('utf-8');
+      const text: string = decoder.decodeWithStream(new Uint8Array(buf));
+      const parsed: Object = JSON.parse(text);
+      const obj: Record<string, Object> = parsed as Record<string, Object>;
+      const appField: Object | undefined = obj['app'];
+      if (appField === undefined || typeof appField !== 'string' || appField !== 'EnergyCollect') {
+        promptAction.showToast({ message: $r('app.string.toast_import_fail') });
+        return;
+      }
+      const devField: Object | undefined = obj['devices'];
+      if (devField === undefined || !(devField instanceof Array)) {
+        promptAction.showToast({ message: $r('app.string.toast_import_fail') });
+        return;
+      }
+      const devArr: Object[] = devField as Object[];
+      const indexToNewId: Map<number, number> = new Map<number, number>();
+      let devCount: number = 0;
+      for (let i = 0; i < devArr.length; i++) {
+        const row: Record<string, Object> = devArr[i] as Record<string, Object>;
+        const nameField: Object | undefined = row['name'];
+        const iconField: Object | undefined = row['icon'];
+        if (nameField !== undefined && typeof nameField === 'string' && nameField.length > 0 &&
+          iconField !== undefined && typeof iconField === 'string') {
+          const newId: number = await this.deviceRepo.insert(
+            nameField, iconField,
+            this.readNumber(row['capacity']),
+            this.readNumber(row['rangeRated']),
+            this.readString(row['statMode'])
+          );
+          indexToNewId.set(i, newId);
+          devCount++;
+        }
+      }
+      let sessCount: number = 0;
+      const sessField: Object | undefined = obj['sessions'];
+      if (sessField !== undefined && sessField instanceof Array) {
+        const sessArr: Object[] = sessField as Object[];
+        for (const item of sessArr) {
+          const row: Record<string, Object> = item as Record<string, Object>;
+          const idx: number = this.readNumber(row['deviceIndex']);
+          const newDeviceId: number | undefined = indexToNewId.get(idx);
+          if (newDeviceId === undefined) {
+            continue;
+          }
+          const typeNum: number = this.readNumber(row['type']);
+          const type: SessionType = typeNum === 2 ? SessionType.CHARGING : (typeNum === 1 ? SessionType.IDLE : SessionType.USAGE);
+          await this.sessionRepo.importSession(
+            newDeviceId, type,
+            this.readNumber(row['startBattery']),
+            this.readNumber(row['endBattery']),
+            this.readNumber(row['startTime']),
+            this.readNumber(row['endTime']),
+            this.readString(row['note']),
+            this.readNumber(row['startRange']),
+            this.readNumber(row['endRange'])
+          );
+          sessCount++;
+        }
+      }
+      if (devCount > 0 || sessCount > 0) {
+        this.bump();
+        promptAction.showToast({ message: $r('app.string.toast_import_success') });
+      } else {
+        promptAction.showToast({ message: $r('app.string.toast_import_fail') });
+      }
+    } catch (e) {
+      promptAction.showToast({ message: $r('app.string.toast_import_fail') });
+    }
+  }
+
+  private readNumber(field: Object | undefined): number {
+    if (field !== undefined && typeof field === 'number') {
+      return field;
+    }
+    return 0;
+  }
+
+  private readString(field: Object | undefined): string {
+    if (field !== undefined && typeof field === 'string') {
+      return field;
+    }
+    return '';
   }
 
   private confirmClear(): void {

@@ -65,6 +65,23 @@ export class SessionRepository {
     return await store.insert('sessions', values);
   }
 
+  async importSession(deviceId: number, type: SessionType, startBattery: number, endBattery: number, startTime: number, endTime: number, note: string, startRange: number, endRange: number): Promise<number> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    const values: relationalStore.ValuesBucket = {
+      'device_id': deviceId,
+      'type': type,
+      'start_battery': startBattery,
+      'end_battery': endBattery,
+      'start_time': startTime,
+      'end_time': endTime,
+      'note': note,
+      'created_at': Date.now(),
+      'start_range': startRange,
+      'end_range': endRange
+    };
+    return await store.insert('sessions', values);
+  }
+
   async endSession(id: number, endBattery: number, endRange?: number): Promise<void> {
     const store: relationalStore.RdbStore = this.db.getStore();
     const now: number = Date.now();
