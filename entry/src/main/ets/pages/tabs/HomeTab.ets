@@ -104,10 +104,16 @@ export struct DeviceCard {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
         if (this.card.currentBattery >= 0) {
-          Text(`${this.card.currentBattery}%`)
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_secondary'))
+          Row({ space: 3 }) {
+            Image($r('app.media.ic_lightning'))
+              .width(13)
+              .height(13)
+              .fillColor($r('app.color.charge_color'))
+            Text(`${this.card.currentBattery}%`)
+              .fontSize(14)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_secondary'))
+          }
         }
       }
       .width('100%')
