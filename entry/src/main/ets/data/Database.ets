@@ -1,5 +1,9 @@
 import { relationalStore } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+
+const DOMAIN: number = 0x0001;
+const TAG: string = 'EnergyCollect';
 
 const STORE_CONFIG: relationalStore.StoreConfig = {
   name: 'EnergyCollect.db',
@@ -56,12 +60,17 @@ export class Database {
     if (this.store !== null) {
       return;
     }
-    this.store = await relationalStore.getRdbStore(context, STORE_CONFIG);
-    await this.store.executeSql(SQL_CREATE_DEVICES);
-    await this.store.executeSql(SQL_CREATE_SESSIONS);
-    await this.store.executeSql(SQL_INDEX_SESSION_DEVICE);
-    await this.store.executeSql(SQL_INDEX_SESSION_TIME);
-    await this.migrate();
+    try {
+      this.store = await relationalStore.getRdbStore(context, STORE_CONFIG);
+      await this.store.executeSql(SQL_CREATE_DEVICES);
+      await this.store.executeSql(SQL_CREATE_SESSIONS);
+      await this.store.executeSql(SQL_INDEX_SESSION_DEVICE);
+      await this.store.executeSql(SQL_INDEX_SESSION_TIME);
+      await this.migrate();
+    } catch (error) {
+      this.store = null;
+      hilog.error(DOMAIN, TAG, 'Database init failed: %{public}s', JSON.stringify(error));
+    }
   }
 
   private async migrate(): Promise<void> {
