@@ -1,0 +1,364 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "电量记录应用"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "记录设备电量使用情况"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "电量记录"
+    },
+    {
+      "name": "app_name",
+      "value": "电量记录"
+    },
+    {
+      "name": "tab_home",
+      "value": "首页"
+    },
+    {
+      "name": "tab_history",
+      "value": "历史"
+    },
+    {
+      "name": "tab_mine",
+      "value": "我的"
+    },
+    {
+      "name": "home_title",
+      "value": "能量记录"
+    },
+    {
+      "name": "home_no_device_title",
+      "value": "还没有设备"
+    },
+    {
+      "name": "home_no_device_desc",
+      "value": "添加一个要追踪的设备，开始记录它的电量"
+    },
+    {
+      "name": "home_no_device_btn",
+      "value": "添加设备"
+    },
+    {
+      "name": "home_start_usage",
+      "value": "开始使用会话"
+    },
+    {
+      "name": "home_start_idle",
+      "value": "开始闲置会话"
+    },
+    {
+      "name": "home_end_session",
+      "value": "结束会话"
+    },
+    {
+      "name": "home_active_usage",
+      "value": "使用中"
+    },
+    {
+      "name": "home_active_idle",
+      "value": "闲置中"
+    },
+    {
+      "name": "home_start_charge",
+      "value": "开始充电"
+    },
+    {
+      "name": "home_active_charge",
+      "value": "充电中"
+    },
+    {
+      "name": "home_elapsed",
+      "value": "已进行"
+    },
+    {
+      "name": "home_start_battery",
+      "value": "开始电量"
+    },
+    {
+      "name": "home_select_device",
+      "value": "选择设备"
+    },
+    {
+      "name": "stat_today_sessions",
+      "value": "今日会话"
+    },
+    {
+      "name": "stat_today_drain",
+      "value": "今日耗能"
+    },
+    {
+      "name": "stat_today_charge",
+      "value": "今日补能"
+    },
+    {
+      "name": "stat_idle_rate",
+      "value": "平均掉电率"
+    },
+    {
+      "name": "stat_idle_rate_unit",
+      "value": "%/h"
+    },
+    {
+      "name": "history_title",
+      "value": "历史记录"
+    },
+    {
+      "name": "history_filter_all_devices",
+      "value": "全部设备"
+    },
+    {
+      "name": "history_filter_all_types",
+      "value": "全部"
+    },
+    {
+      "name": "history_filter_usage",
+      "value": "使用"
+    },
+    {
+      "name": "history_filter_idle",
+      "value": "闲置"
+    },
+    {
+      "name": "history_filter_charge",
+      "value": "充电"
+    },
+    {
+      "name": "history_total_sessions",
+      "value": "总记录"
+    },
+    {
+      "name": "history_total_drain",
+      "value": "总耗能"
+    },
+    {
+      "name": "history_total_charge",
+      "value": "总补能"
+    },
+    {
+      "name": "history_empty_title",
+      "value": "暂无记录"
+    },
+    {
+      "name": "history_empty_desc",
+      "value": "完成一次会话后，趋势图和记录会显示在这里"
+    },
+    {
+      "name": "history_chart_title",
+      "value": "电量趋势"
+    },
+    {
+      "name": "session_type_usage",
+      "value": "使用会话"
+    },
+    {
+      "name": "session_type_idle",
+      "value": "闲置会话"
+    },
+    {
+      "name": "session_type_charge",
+      "value": "充电会话"
+    },
+    {
+      "name": "session_in_progress",
+      "value": "进行中"
+    },
+    {
+      "name": "mine_title",
+      "value": "我的"
+    },
+    {
+      "name": "mine_section_devices",
+      "value": "设备管理"
+    },
+    {
+      "name": "mine_add_device",
+      "value": "添加设备"
+    },
+    {
+      "name": "mine_section_settings",
+      "value": "设置"
+    },
+    {
+      "name": "mine_export",
+      "value": "导出数据"
+    },
+    {
+      "name": "mine_import",
+      "value": "导入数据"
+    },
+    {
+      "name": "mine_color_mode",
+      "value": "外观模式"
+    },
+    {
+      "name": "mine_color_mode_auto",
+      "value": "跟随系统"
+    },
+    {
+      "name": "mine_color_mode_light",
+      "value": "浅色"
+    },
+    {
+      "name": "mine_color_mode_dark",
+      "value": "深色"
+    },
+    {
+      "name": "mine_clear_data",
+      "value": "清除所有数据"
+    },
+    {
+      "name": "mine_about",
+      "value": "关于"
+    },
+    {
+      "name": "mine_version",
+      "value": "版本"
+    },
+    {
+      "name": "device_name_label",
+      "value": "设备名称"
+    },
+    {
+      "name": "device_name_placeholder",
+      "value": "例如：我的电动车"
+    },
+    {
+      "name": "device_icon_label",
+      "value": "设备图标"
+    },
+    {
+      "name": "device_type_ev",
+      "value": "电动车"
+    },
+    {
+      "name": "device_type_powerbank",
+      "value": "充电宝"
+    },
+    {
+      "name": "device_type_phone",
+      "value": "手机"
+    },
+    {
+      "name": "device_type_earphone",
+      "value": "耳机"
+    },
+    {
+      "name": "device_type_laptop",
+      "value": "笔记本"
+    },
+    {
+      "name": "device_type_other",
+      "value": "其他"
+    },
+    {
+      "name": "action_save",
+      "value": "保存"
+    },
+    {
+      "name": "action_cancel",
+      "value": "取消"
+    },
+    {
+      "name": "action_delete",
+      "value": "删除"
+    },
+    {
+      "name": "action_confirm",
+      "value": "确定"
+    },
+    {
+      "name": "action_done",
+      "value": "完成"
+    },
+    {
+      "name": "battery_label",
+      "value": "电量"
+    },
+    {
+      "name": "battery_note_label",
+      "value": "备注（可选）"
+    },
+    {
+      "name": "battery_note_placeholder",
+      "value": "例如：满电出门"
+    },
+    {
+      "name": "battery_end_title",
+      "value": "结束电量"
+    },
+    {
+      "name": "battery_start_title",
+      "value": "开始电量"
+    },
+    {
+      "name": "dialog_new_device_title",
+      "value": "新建设备"
+    },
+    {
+      "name": "dialog_edit_device_title",
+      "value": "编辑设备"
+    },
+    {
+      "name": "dialog_clear_title",
+      "value": "清除所有数据？"
+    },
+    {
+      "name": "dialog_clear_desc",
+      "value": "将永久删除全部设备与会话记录，且无法恢复。"
+    },
+    {
+      "name": "dialog_delete_device_title",
+      "value": "删除设备？"
+    },
+    {
+      "name": "dialog_delete_device_desc",
+      "value": "该设备的所有会话记录也将一并删除。"
+    },
+    {
+      "name": "toast_export_success",
+      "value": "已导出到应用沙箱"
+    },
+    {
+      "name": "toast_export_fail",
+      "value": "导出失败"
+    },
+    {
+      "name": "toast_import_success",
+      "value": "导入成功"
+    },
+    {
+      "name": "toast_import_fail",
+      "value": "导入失败，文件格式不正确"
+    },
+    {
+      "name": "toast_name_empty",
+      "value": "请填写设备名称"
+    },
+    {
+      "name": "toast_end_too_high",
+      "value": "结束电量不能高于开始电量"
+    },
+    {
+      "name": "export_path_prefix",
+      "value": "文件已保存："
+    },
+    {
+      "name": "duration_hour",
+      "value": "时"
+    },
+    {
+      "name": "duration_minute",
+      "value": "分"
+    },
+    {
+      "name": "duration_second",
+      "value": "秒"
+    }
+  ]
+}

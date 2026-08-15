@@ -1,0 +1,482 @@
+import { HdsNavigation } from '@kit.UIDesignKit';
+import { StatCard } from '../../components/StatCard';
+import { EmptyState } from '../../components/EmptyState';
+import { BatteryInputDialog } from '../../components/BatteryInputDialog';
+import { DeviceSheet } from '../../components/DeviceSheet';
+import { Device, iconToResource } from '../../model/Device';
+import { Session } from '../../model/Session';
+import { SessionType } from '../../model/SessionType';
+import { DeviceRepository } from '../../data/repository/DeviceRepository';
+import { SessionRepository } from '../../data/repository/SessionRepository';
+import { CalcUtil } from '../../utils/CalcUtil';
+import { DateTimeUtil } from '../../utils/DateTimeUtil';
+import { promptAction } from '@kit.ArkUI';
+
+@Observed
+export class DeviceCardData {
+  device: Device = new Device();
+  activeSession: Session | null = null;
+  currentBattery: number = -1;
+  todayCount: number = 0;
+  todayDrain: number = 0;
+  chargeGain: number = 0;
+}
+
+@Component
+export struct DeviceCard {
+  @ObjectLink card: DeviceCardData;
+  onStart: (deviceId: number, type: SessionType, defaultBattery: number) => void = (): void => {};
+  onEnd: (session: Session) => void = (): void => {};
+  @State elapsedText: string = '00:00:00';
+  private timerId: number = -1;
+
+  aboutToAppear(): void {
+    if (this.card.activeSession !== null) {
+      this.elapsedText = DateTimeUtil.formatClock(Date.now() - this.card.activeSession.startTime);
+      this.ensureTimer();
+    }
+  }
+
+  aboutToDisappear(): void {
+    this.clearTimer();
+  }
+
+  private ensureTimer(): void {
+    if (this.timerId !== -1) {
+      return;
+    }
+    this.timerId = setInterval((): void => {
+      if (this.card.activeSession !== null) {
+        this.elapsedText = DateTimeUtil.formatClock(Date.now() - this.card.activeSession.startTime);
+      }
+    }, 1000);
+  }
+
+  private clearTimer(): void {
+    if (this.timerId !== -1) {
+      clearInterval(this.timerId);
+      this.timerId = -1;
+    }
+  }
+
+  private activeLabel(s: Session): ResourceStr {
+    if (s.type === SessionType.CHARGING) {
+      return $r('app.string.home_active_charge');
+    }
+    if (s.type === SessionType.USAGE) {
+      return $r('app.string.home_active_usage');
+    }
+    return $r('app.string.home_active_idle');
+  }
+
+  private activeColor(s: Session): ResourceColor {
+    if (s.type === SessionType.CHARGING) {
+      return $r('app.color.charge_color');
+    }
+    if (s.type === SessionType.USAGE) {
+      return $r('app.color.usage_color');
+    }
+    return $r('app.color.idle_color');
+  }
+
+  private activeBg(s: Session): ResourceColor {
+    if (s.type === SessionType.CHARGING) {
+      return $r('app.color.charge_bg');
+    }
+    if (s.type === SessionType.USAGE) {
+      return $r('app.color.usage_bg');
+    }
+    return $r('app.color.idle_bg');
+  }
+
+  build() {
+    Column({ space: 14 }) {
+      Row({ space: 8 }) {
+        Image(iconToResource(this.card.device.icon))
+          .width(22)
+          .height(22)
+          .fillColor($r('app.color.brand'))
+        Text(this.card.device.name)
+          .fontSize(17)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.text_primary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .layoutWeight(1)
+        if (this.card.currentBattery >= 0) {
+          Text(`${this.card.currentBattery}%`)
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_secondary'))
+        }
+      }
+      .width('100%')
+
+      if (this.card.activeSession !== null) {
+        this.ActiveArea(this.card.activeSession)
+      } else {
+        this.CtaRow()
+      }
+
+      this.StatsRow()
+    }
+    .width('100%')
+    .padding(16)
+    .backgroundColor($r('app.color.bg_card'))
+    .borderRadius(18)
+  }
+
+  @Builder
+  CtaRow() {
+    Row({ space: 12 }) {
+      Column({ space: 8 }) {
+        Stack() {
+          Text('')
+            .width(40)
+            .height(40)
+            .backgroundColor($r('app.color.usage_color'))
+            .borderRadius(20)
+            .opacity(0.12)
+          Image(iconToResource(this.card.device.icon))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.usage_color'))
+        }
+        .width(40)
+        .height(40)
+        Text($r('app.string.home_start_usage'))
+          .fontSize(12)
+          .fontColor($r('app.color.text_primary'))
+      }
+      .layoutWeight(1)
+      .padding({ top: 12, bottom: 12 })
+      .borderRadius(14)
+      .backgroundColor($r('app.color.usage_bg'))
+      .onClick(() => {
+        this.onStart(this.card.device.id, SessionType.USAGE, this.card.currentBattery);
+      })
+
+      Column({ space: 8 }) {
+        Stack() {
+          Text('')
+            .width(40)
+            .height(40)
+            .backgroundColor($r('app.color.charge_color'))
+            .borderRadius(20)
+            .opacity(0.12)
+          Image(iconToResource(this.card.device.icon))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.charge_color'))
+        }
+        .width(40)
+        .height(40)
+        Text($r('app.string.home_start_charge'))
+          .fontSize(12)
+          .fontColor($r('app.color.text_primary'))
+      }
+      .layoutWeight(1)
+      .padding({ top: 12, bottom: 12 })
+      .borderRadius(14)
+      .backgroundColor($r('app.color.charge_bg'))
+      .onClick(() => {
+        this.onStart(this.card.device.id, SessionType.CHARGING, this.card.currentBattery);
+      })
+    }
+    .width('100%')
+  }
+
+  @Builder
+  ActiveArea(s: Session) {
+    Column({ space: 12 }) {
+      Row() {
+        Row({ space: 6 }) {
+          Text(this.activeLabel(s))
+            .fontSize(12)
+            .fontColor(this.activeColor(s))
+            .backgroundColor(this.activeBg(s))
+            .borderRadius(6)
+            .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+        }
+        Blank()
+      }
+      .width('100%')
+
+      Row() {
+        Column({ space: 4 }) {
+          Text(this.elapsedText)
+            .fontSize(28)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.text_primary'))
+          Text($r('app.string.home_elapsed'))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+        }
+        .alignItems(HorizontalAlign.Start)
+
+        Blank()
+
+        Column({ space: 4 }) {
+          Row({ space: 3 }) {
+            Text(`${s.startBattery}`)
+              .fontSize(22)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.text_primary'))
+            Text('%')
+              .fontSize(14)
+              .fontColor($r('app.color.text_secondary'))
+          }
+          .alignItems(VerticalAlign.Bottom)
+          Text($r('app.string.home_start_battery'))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+        }
+        .alignItems(HorizontalAlign.End)
+      }
+      .width('100%')
+
+      Button($r('app.string.home_end_session'))
+        .type(ButtonType.Normal)
+        .borderRadius(12)
+        .width('100%')
+        .height(44)
+        .backgroundColor($r('app.color.brand'))
+        .fontColor($r('app.color.text_on_brand'))
+        .onClick(() => {
+          this.onEnd(s);
+        })
+    }
+    .width('100%')
+  }
+
+  @Builder
+  StatsRow() {
+    Row({ space: 12 }) {
+      Column() {
+        StatCard({
+          label: $r('app.string.stat_today_sessions'),
+          value: `${this.card.todayCount}`
+        })
+      }
+      .layoutWeight(1)
+      Column() {
+        StatCard({
+          label: $r('app.string.stat_today_charge'),
+          value: `${this.card.chargeGain}`,
+          unit: '%',
+          valueColor: $r('app.color.charge_color')
+        })
+      }
+      .layoutWeight(1)
+      Column() {
+        StatCard({
+          label: $r('app.string.stat_today_drain'),
+          value: `${this.card.todayDrain}`,
+          unit: '%',
+          valueColor: $r('app.color.danger')
+        })
+      }
+      .layoutWeight(1)
+    }
+    .width('100%')
+  }
+}
+
+@Component
+export struct HomeTab {
+  @StorageProp('dataVersion') @Watch('reload') dataVersion: number = 0;
+  @State cards: DeviceCardData[] = [];
+  @State showDeviceSheet: boolean = false;
+
+  private deviceRepo: DeviceRepository = new DeviceRepository();
+  private sessionRepo: SessionRepository = new SessionRepository();
+  private startDialogController: CustomDialogController | null = null;
+  private endDialogController: CustomDialogController | null = null;
+  @StorageProp('navBarHeight') navBarHeight: number = 0;
+  @StorageProp('statusBarHeight') statusBarHeight: number = 0;
+
+  aboutToAppear(): void {
+    this.reload();
+  }
+
+  reload(): void {
+    this.loadData();
+  }
+
+  private async loadData(): Promise<void> {
+    const devices: Device[] = await this.deviceRepo.listAll(false);
+    const startToday: number = DateTimeUtil.startOfToday();
+    const cards: DeviceCardData[] = [];
+    for (const d of devices) {
+      const active: Session | null = await this.sessionRepo.getActive(d.id);
+      const sessions: Session[] = await this.sessionRepo.listFiltered(d.id, -1);
+      let currentBattery: number = -1;
+      if (active !== null) {
+        currentBattery = active.startBattery;
+      } else {
+        for (const s of sessions) {
+          if (s.isCompleted()) {
+            currentBattery = s.endBattery;
+            break;
+          }
+        }
+      }
+      const card: DeviceCardData = new DeviceCardData();
+      card.device = d;
+      card.activeSession = active;
+      card.currentBattery = currentBattery;
+      card.todayCount = CalcUtil.countToday(sessions, startToday);
+      card.todayDrain = CalcUtil.drainToday(sessions, startToday);
+      card.chargeGain = CalcUtil.chargeToday(sessions, startToday);
+      cards.push(card);
+    }
+    this.cards = cards;
+  }
+
+  private bump(): void {
+    const v: number = AppStorage.get<number>('dataVersion') ?? 0;
+    AppStorage.setOrCreate('dataVersion', v + 1);
+  }
+
+  private openStartDialog(deviceId: number, type: SessionType, defaultBattery: number): void {
+    this.startDialogController = new CustomDialogController({
+      builder: BatteryInputDialog({
+        title: $r('app.string.battery_start_title'),
+        maxValue: 100,
+        defaultValue: defaultBattery,
+        showNote: true,
+        onConfirm: (battery: number, note: string): void => {
+          this.confirmStart(deviceId, type, battery, note);
+        }
+      }),
+      alignment: DialogAlignment.Center,
+      customStyle: false
+    });
+    this.startDialogController.open();
+  }
+
+  private openEndDialog(session: Session): void {
+    const isCharge: boolean = session.type === SessionType.CHARGING;
+    this.endDialogController = new CustomDialogController({
+      builder: BatteryInputDialog({
+        title: $r('app.string.battery_end_title'),
+        maxValue: isCharge ? 100 : session.startBattery,
+        minValue: isCharge ? session.startBattery : 0,
+        showNote: false,
+        onConfirm: (battery: number, note: string): void => {
+          this.confirmEnd(session.id, battery);
+        },
+        onInvalid: (): void => {
+          promptAction.showToast({ message: $r('app.string.toast_end_too_high') });
+        }
+      }),
+      alignment: DialogAlignment.Center,
+      customStyle: false
+    });
+    this.endDialogController.open();
+  }
+
+  private async confirmStart(deviceId: number, type: SessionType, battery: number, note: string): Promise<void> {
+    await this.sessionRepo.startSession(deviceId, type, battery, note);
+    this.bump();
+    this.loadData();
+  }
+
+  private async confirmEnd(id: number, battery: number): Promise<void> {
+    await this.sessionRepo.endSession(id, battery);
+    this.bump();
+    this.loadData();
+  }
+
+  private async saveDevice(name: string, icon: string): Promise<void> {
+    await this.deviceRepo.insert(name, icon);
+    this.showDeviceSheet = false;
+    this.bump();
+    this.loadData();
+  }
+
+  build() {
+    HdsNavigation() {
+      Scroll() {
+        Column({ space: 16 }) {
+          if (this.cards.length === 0) {
+            this.EmptyBody()
+          } else {
+            ForEach(this.cards, (card: DeviceCardData) => {
+              DeviceCard({
+                card: card,
+                onStart: (deviceId: number, type: SessionType, defaultBattery: number): void => {
+                  this.openStartDialog(deviceId, type, defaultBattery);
+                },
+                onEnd: (session: Session): void => {
+                  this.openEndDialog(session);
+                }
+              })
+            }, (card: DeviceCardData) => `${card.device.id}_${card.activeSession !== null ? card.activeSession.id : 'none'}`)
+          }
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 16, bottom: 96 + this.navBarHeight })
+      }
+      .width('100%')
+      .height('100%')
+      .scrollBar(BarState.Off)
+      .align(Alignment.Top)
+    }
+    .hideTitleBar(true)
+    .padding({ top: this.statusBarHeight })
+    .expandSafeArea([SafeAreaType.SYSTEM, SafeAreaType.CUTOUT], [SafeAreaEdge.TOP])
+    .linearGradient({
+      angle: 180,
+      colors: [[$r('app.color.bg_gradient_start'), 0.0], [$r('app.color.bg_gradient_end'), 1.0]]
+    })
+    .bindSheet($$this.showDeviceSheet, this.DeviceSheetBuilder(), {
+      detents: [SheetSize.MEDIUM, SheetSize.LARGE],
+      showClose: false,
+      backgroundColor: $r('app.color.bg_primary')
+    })
+  }
+
+  @Builder
+  EmptyBody() {
+    Column({ space: 4 }) {
+      EmptyState({
+        icon: $r('app.media.ic_device_other'),
+        title: $r('app.string.home_no_device_title'),
+        desc: $r('app.string.home_no_device_desc')
+      })
+      Button($r('app.string.home_no_device_btn'))
+        .type(ButtonType.Normal)
+        .borderRadius(14)
+        .height(44)
+        .padding({ left: 28, right: 28 })
+        .backgroundColor($r('app.color.brand'))
+        .fontColor($r('app.color.text_on_brand'))
+        .margin({ top: 8 })
+        .onClick(() => {
+          this.showDeviceSheet = true;
+        })
+    }
+    .width('100%')
+    .padding({ top: 40 })
+  }
+
+  @Builder
+  DeviceSheetBuilder() {
+    DeviceSheet({
+      sheetTitle: $r('app.string.dialog_new_device_title'),
+      initialName: '',
+      initialIcon: 'other',
+      canDelete: false,
+      onSave: (name: string, icon: string): void => {
+        this.saveDevice(name, icon);
+      },
+      onClose: (): void => {
+        this.showDeviceSheet = false;
+      },
+      onInvalid: (): void => {
+        promptAction.showToast({ message: $r('app.string.toast_name_empty') });
+      }
+    })
+  }
+}

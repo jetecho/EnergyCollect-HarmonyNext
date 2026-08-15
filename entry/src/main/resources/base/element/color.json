@@ -1,0 +1,30 @@
+{
+  "color": [
+    { "name": "start_window_background", "value": "#E8EEFE" },
+    { "name": "brand", "value": "#0A59F7" },
+    { "name": "brand_light", "value": "#E8EEFE" },
+    { "name": "bg_primary", "value": "#F1F3F5" },
+    { "name": "bg_gradient_start", "value": "#E8EEFE" },
+    { "name": "bg_gradient_end", "value": "#D8E3F7" },
+    { "name": "bg_secondary", "value": "#FFFFFF" },
+    { "name": "bg_card", "value": "#FFFFFF" },
+    { "name": "bg_tab", "value": "#FFFFFF" },
+    { "name": "bg_top", "value": "#FFFFFF" },
+    { "name": "text_primary", "value": "#182431" },
+    { "name": "text_secondary", "value": "#555770" },
+    { "name": "text_tertiary", "value": "#99A0B3" },
+    { "name": "text_on_brand", "value": "#FFFFFF" },
+    { "name": "divider", "value": "#E5E8EE" },
+    { "name": "usage_color", "value": "#0A59F7" },
+    { "name": "usage_bg", "value": "#E8EEFE" },
+    { "name": "idle_color", "value": "#F08200" },
+    { "name": "idle_bg", "value": "#FFF1E0" },
+    { "name": "charge_color", "value": "#1FA978" },
+    { "name": "charge_bg", "value": "#E6F4EF" },
+    { "name": "danger", "value": "#E84026" },
+    { "name": "danger_bg", "value": "#FDE8E4" },
+    { "name": "success", "value": "#1FA978" },
+    { "name": "icon_outline", "value": "#99A0B3" },
+    { "name": "shadow", "value": "#182431" }
+  ]
+}

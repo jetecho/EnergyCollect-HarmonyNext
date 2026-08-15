@@ -1,0 +1,100 @@
+import { relationalStore } from '@kit.ArkData';
+import { Database } from '../Database';
+import { Session } from '../../model/Session';
+import { SessionType } from '../../model/SessionType';
+
+export class SessionRepository {
+  private db: Database = Database.getInstance();
+
+  async listFiltered(deviceId: number, typeFilter: number): Promise<Session[]> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    let sql: string = 'SELECT * FROM sessions WHERE 1 = 1';
+    if (deviceId > 0) {
+      sql += ' AND device_id = ' + deviceId;
+    }
+    if (typeFilter >= 0) {
+      sql += ' AND type = ' + typeFilter;
+    }
+    sql += ' ORDER BY start_time DESC';
+    const resultSet: relationalStore.ResultSet = await store.querySql(sql);
+    return this.mapSessions(resultSet);
+  }
+
+  async getActive(deviceId: number): Promise<Session | null> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    const sql: string =
+      'SELECT * FROM sessions WHERE device_id = ' + deviceId +
+      ' AND end_time IS NULL ORDER BY start_time DESC LIMIT 1';
+    const resultSet: relationalStore.ResultSet = await store.querySql(sql);
+    const list: Session[] = this.mapSessions(resultSet);
+    if (list.length === 0) {
+      return null;
+    }
+    return list[0];
+  }
+
+  async startSession(deviceId: number, type: SessionType, startBattery: number, note: string): Promise<number> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    const now: number = Date.now();
+    const values: relationalStore.ValuesBucket = {
+      'device_id': deviceId,
+      'type': type,
+      'start_battery': startBattery,
+      'start_time': now,
+      'note': note,
+      'created_at': now
+    };
+    return await store.insert('sessions', values);
+  }
+
+  async endSession(id: number, endBattery: number): Promise<void> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    const now: number = Date.now();
+    const values: relationalStore.ValuesBucket = {
+      'end_battery': endBattery,
+      'end_time': now
+    };
+    const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('sessions');
+    pred.equalTo('id', id);
+    await store.update(values, pred);
+  }
+
+  async delete(id: number): Promise<void> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('sessions');
+    pred.equalTo('id', id);
+    await store.delete(pred);
+  }
+
+  async deleteAll(): Promise<void> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    await store.executeSql('DELETE FROM sessions');
+    await store.executeSql('DELETE FROM devices');
+  }
+
+  private mapSessions(resultSet: relationalStore.ResultSet): Session[] {
+    const list: Session[] = [];
+    while (resultSet.goToNextRow()) {
+      const s: Session = new Session();
+      s.id = resultSet.getLong(resultSet.getColumnIndex('id'));
+      s.deviceId = resultSet.getLong(resultSet.getColumnIndex('device_id'));
+      const typeVal: number = resultSet.getLong(resultSet.getColumnIndex('type'));
+      if (typeVal === 0) {
+        s.type = SessionType.USAGE;
+      } else if (typeVal === 2) {
+        s.type = SessionType.CHARGING;
+      } else {
+        s.type = SessionType.IDLE;
+      }
+      s.startBattery = resultSet.getLong(resultSet.getColumnIndex('start_battery'));
+      s.endBattery = resultSet.getLong(resultSet.getColumnIndex('end_battery'));
+      s.startTime = resultSet.getLong(resultSet.getColumnIndex('start_time'));
+      s.endTime = resultSet.getLong(resultSet.getColumnIndex('end_time'));
+      s.note = resultSet.getString(resultSet.getColumnIndex('note'));
+      s.createdAt = resultSet.getLong(resultSet.getColumnIndex('created_at'));
+      list.push(s);
+    }
+    resultSet.close();
+    return list;
+  }
+}
