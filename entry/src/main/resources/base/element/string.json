@@ -417,6 +417,10 @@
       "value": "+"
     },
     {
+      "name": "symbol_minus",
+      "value": "−"
+    },
+    {
       "name": "symbol_dot",
       "value": "·"
     }

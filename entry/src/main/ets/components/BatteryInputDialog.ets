@@ -30,6 +30,46 @@ export struct BatteryInputDialog {
     }
   }
 
+  private batteryMaxLimit(): number {
+    return this.maxValue > 0 && this.maxValue < 100 ? this.maxValue : 100;
+  }
+
+  private syncRange(): void {
+    if (this.showRange && this.rangeMax > 0) {
+      this.range = Math.round(this.battery * this.rangeMax / 100);
+    }
+  }
+
+  private decreaseBattery(): void {
+    if (this.battery > this.minValue) {
+      this.battery = this.battery - 1;
+      this.syncRange();
+    }
+  }
+
+  private increaseBattery(): void {
+    if (this.battery < this.batteryMaxLimit()) {
+      this.battery = this.battery + 1;
+      this.syncRange();
+    }
+  }
+
+  private rangeMaxLimit(): number {
+    return this.rangeMax > 0 ? this.rangeMax : 1000;
+  }
+
+  private decreaseRange(): void {
+    if (this.range > 0) {
+      this.range = this.range - 1;
+    }
+  }
+
+  private increaseRange(): void {
+    if (this.range < this.rangeMaxLimit()) {
+      this.range = this.range + 1;
+    }
+  }
+
   build() {
     Column({ space: 16 }) {
       Text(this.title)
@@ -39,18 +79,47 @@ export struct BatteryInputDialog {
         .width('100%')
 
       Column({ space: 4 }) {
-        Row() {
-          Text(`${this.battery}`)
-            .fontSize(40)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.brand'))
-          Text('%')
-            .fontSize(20)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.brand'))
-            .margin({ bottom: 6 })
+        Row({ space: 20 }) {
+          Text($r('app.string.symbol_minus'))
+            .fontSize(22)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.battery > this.minValue ? $r('app.color.brand') : $r('app.color.text_tertiary'))
+            .width(36)
+            .height(36)
+            .textAlign(TextAlign.Center)
+            .backgroundColor($r('app.color.brand_light'))
+            .borderRadius(18)
+            .onClick(() => {
+              this.decreaseBattery();
+            })
+
+          Row({ space: 2 }) {
+            Text(`${this.battery}`)
+              .fontSize(40)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.brand'))
+            Text('%')
+              .fontSize(20)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.brand'))
+              .margin({ bottom: 6 })
+          }
+          .alignItems(VerticalAlign.Bottom)
+
+          Text($r('app.string.symbol_plus'))
+            .fontSize(22)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.battery < this.batteryMaxLimit() ? $r('app.color.brand') : $r('app.color.text_tertiary'))
+            .width(36)
+            .height(36)
+            .textAlign(TextAlign.Center)
+            .backgroundColor($r('app.color.brand_light'))
+            .borderRadius(18)
+            .onClick(() => {
+              this.increaseBattery();
+            })
         }
-        .alignItems(VerticalAlign.Bottom)
+        .alignItems(VerticalAlign.Center)
 
         Text($r('app.string.battery_label'))
           .fontSize(12)
@@ -62,7 +131,7 @@ export struct BatteryInputDialog {
       Slider({
         value: this.battery,
         min: this.minValue,
-        max: this.maxValue > 0 && this.maxValue < 100 ? this.maxValue : 100,
+        max: this.batteryMaxLimit(),
         step: 1,
         style: SliderStyle.OutSet
       })
@@ -72,25 +141,52 @@ export struct BatteryInputDialog {
         .width('100%')
         .onChange((value: number, mode: SliderChangeMode) => {
           this.battery = Math.round(value);
-          if (this.showRange && this.rangeMax > 0) {
-            this.range = Math.round(this.battery * this.rangeMax / 100);
-          }
+          this.syncRange();
         })
 
       if (this.showRange) {
         Column({ space: 4 }) {
-          Row() {
-            Text(`${this.range}`)
-              .fontSize(28)
-              .fontWeight(FontWeight.Bold)
-              .fontColor($r('app.color.charge_color'))
-            Text('km')
-              .fontSize(14)
-              .fontWeight(FontWeight.Bold)
-              .fontColor($r('app.color.charge_color'))
-              .margin({ bottom: 4 })
+          Row({ space: 20 }) {
+            Text($r('app.string.symbol_minus'))
+              .fontSize(20)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(this.range > 0 ? $r('app.color.charge_color') : $r('app.color.text_tertiary'))
+              .width(32)
+              .height(32)
+              .textAlign(TextAlign.Center)
+              .backgroundColor($r('app.color.charge_bg'))
+              .borderRadius(16)
+              .onClick(() => {
+                this.decreaseRange();
+              })
+
+            Row({ space: 2 }) {
+              Text(`${this.range}`)
+                .fontSize(28)
+                .fontWeight(FontWeight.Bold)
+                .fontColor($r('app.color.charge_color'))
+              Text('km')
+                .fontSize(14)
+                .fontWeight(FontWeight.Bold)
+                .fontColor($r('app.color.charge_color'))
+                .margin({ bottom: 4 })
+            }
+            .alignItems(VerticalAlign.Bottom)
+
+            Text($r('app.string.symbol_plus'))
+              .fontSize(20)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(this.range < this.rangeMaxLimit() ? $r('app.color.charge_color') : $r('app.color.text_tertiary'))
+              .width(32)
+              .height(32)
+              .textAlign(TextAlign.Center)
+              .backgroundColor($r('app.color.charge_bg'))
+              .borderRadius(16)
+              .onClick(() => {
+                this.increaseRange();
+              })
           }
-          .alignItems(VerticalAlign.Bottom)
+          .alignItems(VerticalAlign.Center)
 
           Text($r('app.string.session_range_label'))
             .fontSize(12)
@@ -102,7 +198,7 @@ export struct BatteryInputDialog {
         Slider({
           value: this.range,
           min: 0,
-          max: this.rangeMax > 0 ? this.rangeMax : 1000,
+          max: this.rangeMaxLimit(),
           step: 1,
           style: SliderStyle.OutSet
         })
