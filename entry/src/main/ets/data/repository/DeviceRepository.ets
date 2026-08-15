@@ -10,35 +10,50 @@ export class DeviceRepository {
     const sql: string = includeArchived
       ? 'SELECT * FROM devices ORDER BY archived ASC, sort_order ASC, created_at ASC'
       : 'SELECT * FROM devices WHERE archived = 0 ORDER BY sort_order ASC, created_at ASC';
-    const resultSet: relationalStore.ResultSet = await store.querySql(sql);
-    return this.mapDevices(resultSet);
+    try {
+      const resultSet: relationalStore.ResultSet = await store.querySql(sql);
+      return this.mapDevices(resultSet);
+    } catch (e) {
+      throw new Error('listAll failed');
+    }
   }
 
   async getById(id: number): Promise<Device | null> {
     const store: relationalStore.RdbStore = this.db.getStore();
-    const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('devices');
-    pred.equalTo('id', id);
-    const resultSet: relationalStore.ResultSet = await store.query(pred);
-    const list: Device[] = this.mapDevices(resultSet);
-    if (list.length === 0) {
-      return null;
+    try {
+      const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('devices');
+      pred.equalTo('id', id);
+      const resultSet: relationalStore.ResultSet = await store.query(pred);
+      const list: Device[] = this.mapDevices(resultSet);
+      if (list.length === 0) {
+        return null;
+      }
+      return list[0];
+    } catch (e) {
+      throw new Error('getById failed');
     }
-    return list[0];
   }
 
   async count(): Promise<number> {
     const store: relationalStore.RdbStore = this.db.getStore();
-    const resultSet: relationalStore.ResultSet =
-      await store.querySql('SELECT COUNT(*) AS c FROM devices WHERE archived = 0');
-    let count: number = 0;
     try {
-      if (resultSet.goToFirstRow()) {
-        count = resultSet.getLong(resultSet.getColumnIndex('c'));
+      const resultSet: relationalStore.ResultSet =
+        await store.querySql('SELECT COUNT(*) AS c FROM devices WHERE archived = 0');
+      let count: number = 0;
+      try {
+        if (resultSet.goToFirstRow()) {
+          count = resultSet.getLong(resultSet.getColumnIndex('c'));
+        }
+      } finally {
+        try {
+          resultSet.close();
+        } catch (e2) {
+        }
       }
-    } finally {
-      resultSet.close();
+      return count;
+    } catch (e) {
+      throw new Error('count failed');
     }
-    return count;
   }
 
   async insert(name: string, icon: string, capacity?: number, rangeRated?: number, statMode?: string): Promise<number> {
@@ -54,7 +69,11 @@ export class DeviceRepository {
       'range_rated': rangeRated ?? 0,
       'stat_mode': statMode ?? ''
     };
-    return await store.insert('devices', values);
+    try {
+      return await store.insert('devices', values);
+    } catch (e) {
+      throw new Error('insert device failed');
+    }
   }
 
   async update(id: number, name: string, icon: string, capacity?: number, rangeRated?: number, statMode?: string): Promise<void> {
@@ -68,12 +87,20 @@ export class DeviceRepository {
     };
     const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('devices');
     pred.equalTo('id', id);
-    await store.update(values, pred);
+    try {
+      await store.update(values, pred);
+    } catch (e) {
+      throw new Error('update device failed');
+    }
   }
 
   async delete(id: number): Promise<void> {
     const store: relationalStore.RdbStore = this.db.getStore();
-    store.beginTransaction();
+    try {
+      store.beginTransaction();
+    } catch (e) {
+      throw new Error('beginTransaction failed');
+    }
     try {
       const predSession: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('sessions');
       predSession.equalTo('device_id', id);
@@ -83,8 +110,11 @@ export class DeviceRepository {
       await store.delete(predDevice);
       store.commit();
     } catch (e) {
-      store.rollBack();
-      throw new Error('Failed to delete device');
+      try {
+        store.rollBack();
+      } catch (e2) {
+      }
+      throw new Error('delete device failed');
     }
   }
 
@@ -107,8 +137,13 @@ export class DeviceRepository {
         d.statMode = modeIdx >= 0 ? resultSet.getString(modeIdx) : '';
         list.push(d);
       }
+    } catch (e) {
+      throw new Error('mapDevices failed');
     } finally {
-      resultSet.close();
+      try {
+        resultSet.close();
+      } catch (e2) {
+      }
     }
     return list;
   }

@@ -82,22 +82,29 @@ export class Database {
   }
 
   private async ensureColumn(table: string, column: string, alterSql: string): Promise<void> {
-    const store: relationalStore.RdbStore = this.getStore();
-    const resultSet: relationalStore.ResultSet = await store.querySql(`PRAGMA table_info(${table})`);
-    let exists: boolean = false;
     try {
-      while (resultSet.goToNextRow()) {
-        const name: string = resultSet.getString(resultSet.getColumnIndex('name'));
-        if (name === column) {
-          exists = true;
-          break;
+      const store: relationalStore.RdbStore = this.getStore();
+      const resultSet: relationalStore.ResultSet = await store.querySql(`PRAGMA table_info(${table})`);
+      let exists: boolean = false;
+      try {
+        while (resultSet.goToNextRow()) {
+          const name: string = resultSet.getString(resultSet.getColumnIndex('name'));
+          if (name === column) {
+            exists = true;
+            break;
+          }
+        }
+      } finally {
+        try {
+          resultSet.close();
+        } catch (e2) {
         }
       }
-    } finally {
-      resultSet.close();
-    }
-    if (!exists) {
-      await store.executeSql(alterSql);
+      if (!exists) {
+        await store.executeSql(alterSql);
+      }
+    } catch (e) {
+      throw new Error('ensureColumn failed');
     }
   }
 
@@ -109,14 +116,26 @@ export class Database {
   }
 
   beginTransaction(): void {
-    this.getStore().beginTransaction();
+    try {
+      this.getStore().beginTransaction();
+    } catch (e) {
+      throw new Error('beginTransaction failed');
+    }
   }
 
   commitTransaction(): void {
-    this.getStore().commit();
+    try {
+      this.getStore().commit();
+    } catch (e) {
+      throw new Error('commitTransaction failed');
+    }
   }
 
   rollbackTransaction(): void {
-    this.getStore().rollBack();
+    try {
+      this.getStore().rollBack();
+    } catch (e) {
+      throw new Error('rollbackTransaction failed');
+    }
   }
 }

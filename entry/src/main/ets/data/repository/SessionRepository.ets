@@ -16,8 +16,12 @@ export class SessionRepository {
       pred.equalTo('type', typeFilter);
     }
     pred.orderByDesc('start_time');
-    const resultSet: relationalStore.ResultSet = await store.query(pred);
-    return this.mapSessions(resultSet);
+    try {
+      const resultSet: relationalStore.ResultSet = await store.query(pred);
+      return this.mapSessions(resultSet);
+    } catch (e) {
+      throw new Error('listFiltered failed');
+    }
   }
 
   async startSession(deviceId: number, type: SessionType, startBattery: number, note: string, startRange?: number): Promise<number> {
@@ -32,12 +36,20 @@ export class SessionRepository {
       'created_at': now,
       'start_range': startRange ?? -1
     };
-    return await store.insert('sessions', values);
+    try {
+      return await store.insert('sessions', values);
+    } catch (e) {
+      throw new Error('startSession failed');
+    }
   }
 
   async startUsageSession(deviceId: number, startBattery: number, note: string, startRange: number): Promise<number> {
     const store: relationalStore.RdbStore = this.db.getStore();
-    store.beginTransaction();
+    try {
+      store.beginTransaction();
+    } catch (e) {
+      throw new Error('beginTransaction failed');
+    }
     try {
       const sessions: Session[] = await this.listFiltered(deviceId, -1);
       let lastCompleted: Session | null = null;
@@ -58,8 +70,11 @@ export class SessionRepository {
       store.commit();
       return id;
     } catch (e) {
-      store.rollBack();
-      throw new Error('Failed to start usage session');
+      try {
+        store.rollBack();
+      } catch (e2) {
+      }
+      throw new Error('startUsageSession failed');
     }
   }
 
@@ -77,7 +92,11 @@ export class SessionRepository {
       'start_range': startRange ?? -1,
       'end_range': endRange ?? -1
     };
-    return await store.insert('sessions', values);
+    try {
+      return await store.insert('sessions', values);
+    } catch (e) {
+      throw new Error('insertCompleted failed');
+    }
   }
 
   async importSession(deviceId: number, type: SessionType, startBattery: number, endBattery: number, startTime: number, endTime: number, note: string, startRange: number, endRange: number): Promise<number> {
@@ -94,7 +113,11 @@ export class SessionRepository {
       'start_range': startRange,
       'end_range': endRange
     };
-    return await store.insert('sessions', values);
+    try {
+      return await store.insert('sessions', values);
+    } catch (e) {
+      throw new Error('importSession failed');
+    }
   }
 
   async endSession(id: number, endBattery: number, endRange?: number): Promise<void> {
@@ -107,20 +130,32 @@ export class SessionRepository {
     };
     const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('sessions');
     pred.equalTo('id', id);
-    await store.update(values, pred);
+    try {
+      await store.update(values, pred);
+    } catch (e) {
+      throw new Error('endSession failed');
+    }
   }
 
   async delete(id: number): Promise<void> {
     const store: relationalStore.RdbStore = this.db.getStore();
     const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('sessions');
     pred.equalTo('id', id);
-    await store.delete(pred);
+    try {
+      await store.delete(pred);
+    } catch (e) {
+      throw new Error('delete session failed');
+    }
   }
 
   async deleteAll(): Promise<void> {
     const store: relationalStore.RdbStore = this.db.getStore();
-    await store.executeSql('DELETE FROM sessions');
-    await store.executeSql('DELETE FROM devices');
+    try {
+      await store.executeSql('DELETE FROM sessions');
+      await store.executeSql('DELETE FROM devices');
+    } catch (e) {
+      throw new Error('deleteAll failed');
+    }
   }
 
   private mapSessions(resultSet: relationalStore.ResultSet): Session[] {
@@ -150,8 +185,13 @@ export class SessionRepository {
         s.endRange = erIdx >= 0 ? resultSet.getLong(erIdx) : -1;
         list.push(s);
       }
+    } catch (e) {
+      throw new Error('mapSessions failed');
     } finally {
-      resultSet.close();
+      try {
+        resultSet.close();
+      } catch (e2) {
+      }
     }
     return list;
   }
