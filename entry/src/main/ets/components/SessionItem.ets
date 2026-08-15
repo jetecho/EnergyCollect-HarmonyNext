@@ -9,6 +9,7 @@ export struct SessionItem {
   @Prop session: Session;
   @Prop deviceName: string;
   @Prop deviceIcon: string;
+  onEditNote: (session: Session) => void = () => {};
 
   private typeColor(): ResourceColor {
     if (this.session.type === SessionType.CHARGING) {
@@ -106,6 +107,9 @@ export struct SessionItem {
     .backgroundColor($r('app.color.bg_card'))
     .borderRadius(16)
     .alignItems(VerticalAlign.Top)
+    .onClick(() => {
+      this.onEditNote(this.session);
+    })
   }
 
   @Builder

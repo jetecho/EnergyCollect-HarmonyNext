@@ -137,6 +137,20 @@ export class SessionRepository {
     }
   }
 
+  async updateNote(id: number, note: string): Promise<void> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    const values: relationalStore.ValuesBucket = {
+      'note': note
+    };
+    const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('sessions');
+    pred.equalTo('id', id);
+    try {
+      await store.update(values, pred);
+    } catch (e) {
+      throw new Error('updateNote failed');
+    }
+  }
+
   async delete(id: number): Promise<void> {
     const store: relationalStore.RdbStore = this.db.getStore();
     const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('sessions');

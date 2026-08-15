@@ -2,6 +2,7 @@ import { HdsNavigation } from '@kit.UIDesignKit';
 import { StatCard } from '../../components/StatCard';
 import { EmptyState } from '../../components/EmptyState';
 import { SessionItem } from '../../components/SessionItem';
+import { NoteEditDialog } from '../../components/NoteEditDialog';
 import { TrendChart } from '../../components/LineChart';
 import { SessionBarChart } from '../../components/SessionBarChart';
 import { Device, isNev } from '../../model/Device';
@@ -26,6 +27,7 @@ export struct HistoryTab {
 
   private deviceRepo: DeviceRepository = new DeviceRepository();
   private sessionRepo: SessionRepository = new SessionRepository();
+  private noteDialogController: CustomDialogController | null = null;
   @StorageProp('navBarHeight') navBarHeight: number = 0;
   @StorageProp('statusBarHeight') statusBarHeight: number = 0;
 
@@ -84,6 +86,30 @@ export struct HistoryTab {
       }
     }
     return null;
+  }
+
+  private openNoteDialog(session: Session): void {
+    this.noteDialogController = new CustomDialogController({
+      builder: NoteEditDialog({
+        initialNote: session.note,
+        onConfirm: (note: string): void => {
+          this.saveNote(session.id, note);
+        }
+      }),
+      alignment: DialogAlignment.Center,
+      customStyle: false
+    });
+    this.noteDialogController.open();
+  }
+
+  private async saveNote(id: number, note: string): Promise<void> {
+    await this.sessionRepo.updateNote(id, note);
+    this.bump();
+  }
+
+  private bump(): void {
+    const v: number = AppStorage.get<number>('dataVersion') ?? 0;
+    AppStorage.setOrCreate('dataVersion', v + 1);
   }
 
   build() {
@@ -249,7 +275,10 @@ export struct HistoryTab {
         SessionItem({
           session: s,
           deviceName: this.findDevice(s.deviceId)?.name ?? '',
-          deviceIcon: this.findDevice(s.deviceId)?.icon ?? 'other'
+          deviceIcon: this.findDevice(s.deviceId)?.icon ?? 'other',
+          onEditNote: (session: Session): void => {
+            this.openNoteDialog(session);
+          }
         })
       }, (s: Session) => `${s.id}_${s.endTime}`)
     }

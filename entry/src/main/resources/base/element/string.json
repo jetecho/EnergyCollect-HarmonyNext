@@ -349,6 +349,10 @@
       "value": "编辑设备"
     },
     {
+      "name": "dialog_note_edit_title",
+      "value": "编辑备注"
+    },
+    {
       "name": "dialog_clear_title",
       "value": "清除所有数据？"
     },
