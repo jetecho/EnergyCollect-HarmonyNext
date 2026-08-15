@@ -11,7 +11,12 @@ import { PreferencesUtil } from '../../data/PreferencesUtil';
 import { SessionRepository } from '../../data/repository/SessionRepository';
 import { CalcUtil } from '../../utils/CalcUtil';
 import { DateTimeUtil } from '../../utils/DateTimeUtil';
-import { promptAction } from '@kit.ArkUI';
+import { PromptAction } from '@kit.ArkUI';
+import { BusinessError } from '@kit.BasicServicesKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+
+const DOMAIN: number = 0x0001;
+const TAG: string = 'EnergyCollect';
 
 @Observed
 export class DeviceCardData {
@@ -300,6 +305,7 @@ export struct DeviceCard {
 
 @Component
 export struct HomeTab {
+  private promptAction: PromptAction = this.getUIContext().getPromptAction();
   @StorageProp('dataVersion') @Watch('reload') dataVersion: number = 0;
   @State cards: DeviceCardData[] = [];
   @State showDeviceSheet: boolean = false;
@@ -381,6 +387,16 @@ export struct HomeTab {
     AppStorage.setOrCreate('dataVersion', v + 1);
   }
 
+  private showToastSafe(message: ResourceStr): void {
+    try {
+      this.promptAction.showToast({ message: message });
+    } catch (error) {
+      const code: number = (error as BusinessError).code;
+      const msg: string = (error as BusinessError).message;
+      hilog.error(DOMAIN, TAG, 'showToast failed: code=%{public}d, message=%{public}s', code, msg);
+    }
+  }
+
   private openStartDialog(device: Device, type: SessionType, defaultBattery: number, defaultRange: number): void {
     const nev: boolean = isNev(device.icon);
     this.startDialogController = new CustomDialogController({
@@ -418,7 +434,7 @@ export struct HomeTab {
           this.confirmEnd(session.id, battery, nev ? range : -1);
         },
         onInvalid: (): void => {
-          promptAction.showToast({ message: $r('app.string.toast_end_too_high') });
+          this.showToastSafe($r('app.string.toast_end_too_high'));
         }
       }),
       alignment: DialogAlignment.Center,
@@ -543,7 +559,7 @@ export struct HomeTab {
         this.showDeviceSheet = false;
       },
       onInvalid: (): void => {
-        promptAction.showToast({ message: $r('app.string.toast_name_empty') });
+        this.showToastSafe($r('app.string.toast_name_empty'));
       }
     })
   }

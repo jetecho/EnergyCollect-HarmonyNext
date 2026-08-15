@@ -8,10 +8,15 @@ import { SessionRepository } from '../../data/repository/SessionRepository';
 import { PreferencesUtil } from '../../data/PreferencesUtil';
 import { Database } from '../../data/Database';
 import { Immersive } from '../../utils/Immersive';
-import { promptAction } from '@kit.ArkUI';
+import { PromptAction, promptAction } from '@kit.ArkUI';
+import { BusinessError } from '@kit.BasicServicesKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { ConfigurationConstant } from '@kit.AbilityKit';
 import { picker, fileIo } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
+
+const DOMAIN: number = 0x0001;
+const TAG: string = 'EnergyCollect';
 
 interface ExportDeviceV2 {
   name: string;
@@ -35,6 +40,7 @@ interface ExportSessionV2 {
 
 @Component
 export struct MineTab {
+  private promptAction: PromptAction = this.getUIContext().getPromptAction();
   @StorageProp('dataVersion') @Watch('reload') dataVersion: number = 0;
   @StorageProp('colorMode') colorMode: number = -1;
   @State devices: Device[] = [];
@@ -70,6 +76,30 @@ export struct MineTab {
   private bump(): void {
     const v: number = AppStorage.get<number>('dataVersion') ?? 0;
     AppStorage.setOrCreate('dataVersion', v + 1);
+  }
+
+  private showToastSafe(message: ResourceStr): void {
+    try {
+      this.promptAction.showToast({ message: message });
+    } catch (error) {
+      hilog.error(DOMAIN, TAG, 'showToast failed: code=%{public}d, message=%{public}s',
+        (error as BusinessError).code, (error as BusinessError).message);
+    }
+  }
+
+  private showDialogSafe(options: promptAction.ShowDialogOptions, onConfirm: () => void): void {
+    try {
+      this.promptAction.showDialog(options).then((res: promptAction.ShowDialogSuccessResponse) => {
+        if (res.index === 1) {
+          onConfirm();
+        }
+      }).catch((error: BusinessError) => {
+        hilog.error(DOMAIN, TAG, 'showDialog failed: code=%{public}d, message=%{public}s', error.code, error.message);
+      });
+    } catch (error) {
+      hilog.error(DOMAIN, TAG, 'showDialog failed: code=%{public}d, message=%{public}s',
+        (error as BusinessError).code, (error as BusinessError).message);
+    }
   }
 
   private openAddSheet(): void {
@@ -238,7 +268,7 @@ export struct MineTab {
       saveOptions.newFileNames = [`energy_export_${Date.now()}.json`];
       const ctx: Context | undefined = this.getUIContext().getHostContext();
       if (ctx === undefined) {
-        promptAction.showToast({ message: $r('app.string.toast_export_fail') });
+        this.showToastSafe($r('app.string.toast_export_fail'));
         return;
       }
       const savePicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(ctx);
@@ -261,9 +291,9 @@ export struct MineTab {
         written += n;
       }
       fileIo.closeSync(file);
-      promptAction.showToast({ message: $r('app.string.toast_export_success') });
+      this.showToastSafe($r('app.string.toast_export_success'));
     } catch (e) {
-      promptAction.showToast({ message: $r('app.string.toast_export_fail') });
+      this.showToastSafe($r('app.string.toast_export_fail'));
     }
   }
 
@@ -272,7 +302,7 @@ export struct MineTab {
       const options: picker.DocumentSelectOptions = new picker.DocumentSelectOptions();
       const ctx: Context | undefined = this.getUIContext().getHostContext();
       if (ctx === undefined) {
-        promptAction.showToast({ message: $r('app.string.toast_import_fail') });
+        this.showToastSafe($r('app.string.toast_import_fail'));
         return;
       }
       const selectPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(ctx);
@@ -301,12 +331,12 @@ export struct MineTab {
       const obj: Record<string, Object> = parsed as Record<string, Object>;
       const appField: Object | undefined = obj['app'];
       if (appField === undefined || typeof appField !== 'string' || appField !== 'EnergyCollect') {
-        promptAction.showToast({ message: $r('app.string.toast_import_fail') });
+        this.showToastSafe($r('app.string.toast_import_fail'));
         return;
       }
       const devField: Object | undefined = obj['devices'];
       if (devField === undefined || !(devField instanceof Array)) {
-        promptAction.showToast({ message: $r('app.string.toast_import_fail') });
+        this.showToastSafe($r('app.string.toast_import_fail'));
         return;
       }
       const devArr: Object[] = devField as Object[];
@@ -363,16 +393,16 @@ export struct MineTab {
         db.commitTransaction();
         if (devCount > 0 || sessCount > 0) {
           this.bump();
-          promptAction.showToast({ message: $r('app.string.toast_import_success') });
+          this.showToastSafe($r('app.string.toast_import_success'));
         } else {
-          promptAction.showToast({ message: $r('app.string.toast_import_fail') });
+          this.showToastSafe($r('app.string.toast_import_fail'));
         }
       } catch (e) {
         db.rollbackTransaction();
-        promptAction.showToast({ message: $r('app.string.toast_import_fail') });
+        this.showToastSafe($r('app.string.toast_import_fail'));
       }
     } catch (e) {
-      promptAction.showToast({ message: $r('app.string.toast_import_fail') });
+      this.showToastSafe($r('app.string.toast_import_fail'));
     }
   }
 
@@ -398,17 +428,15 @@ export struct MineTab {
   }
 
   private confirmClear(): void {
-    promptAction.showDialog({
+    this.showDialogSafe({
       title: $r('app.string.dialog_clear_title'),
       message: $r('app.string.dialog_clear_desc'),
       buttons: [
         { text: $r('app.string.action_cancel'), color: $r('app.color.text_secondary') },
         { text: $r('app.string.action_confirm'), color: $r('app.color.danger') }
       ]
-    }).then((res: promptAction.ShowDialogSuccessResponse) => {
-      if (res.index === 1) {
-        this.doClear();
-      }
+    }, () => {
+      this.doClear();
     });
   }
 
@@ -473,23 +501,21 @@ export struct MineTab {
         this.showSheet = false;
       },
       onInvalid: (): void => {
-        promptAction.showToast({ message: $r('app.string.toast_name_empty') });
+        this.showToastSafe($r('app.string.toast_name_empty'));
       }
     })
   }
 
   private confirmDeleteDevice(): void {
-    promptAction.showDialog({
+    this.showDialogSafe({
       title: $r('app.string.dialog_delete_device_title'),
       message: $r('app.string.dialog_delete_device_desc'),
       buttons: [
         { text: $r('app.string.action_cancel'), color: $r('app.color.text_secondary') },
         { text: $r('app.string.action_delete'), color: $r('app.color.danger') }
       ]
-    }).then((res: promptAction.ShowDialogSuccessResponse) => {
-      if (res.index === 1) {
-        this.onDeleteDevice();
-      }
+    }, () => {
+      this.onDeleteDevice();
     });
   }
 

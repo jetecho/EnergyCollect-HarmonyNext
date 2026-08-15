@@ -4,16 +4,22 @@ export class Immersive {
   private static mainWindow: window.Window | null = null;
 
   static async setup(windowStage: window.WindowStage): Promise<window.Window> {
-    const win: window.Window = await windowStage.getMainWindow();
-    Immersive.mainWindow = win;
-    await win.setWindowLayoutFullScreen(true);
-    win.on('avoidAreaChange', (data: window.AvoidAreaOptions) => {
-      if (data.type === window.AvoidAreaType.TYPE_SYSTEM) {
-        AppStorage.setOrCreate('statusBarHeight', px2vp(data.area.topRect.height));
-        AppStorage.setOrCreate('navBarHeight', px2vp(data.area.bottomRect.height));
-      }
-    });
-    return win;
+    try {
+      const win: window.Window = await windowStage.getMainWindow();
+      Immersive.mainWindow = win;
+      await win.setWindowLayoutFullScreen(true);
+      const uiCtx: UIContext = win.getUIContext();
+      win.on('avoidAreaChange', (data: window.AvoidAreaOptions) => {
+        if (data.type === window.AvoidAreaType.TYPE_SYSTEM) {
+          AppStorage.setOrCreate('statusBarHeight', uiCtx.px2vp(data.area.topRect.height));
+          AppStorage.setOrCreate('navBarHeight', uiCtx.px2vp(data.area.bottomRect.height));
+        }
+      });
+      return win;
+    } catch (e) {
+      Immersive.mainWindow = null;
+      throw new Error('Immersive setup failed');
+    }
   }
 
   static getMainWindow(): window.Window | null {
@@ -33,13 +39,21 @@ export class Immersive {
   }
 
   static getStatusBarHeightVp(win: window.Window): number {
-    const avoidArea: window.AvoidArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-    return px2vp(avoidArea.topRect.height);
+    try {
+      const avoidArea: window.AvoidArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      return win.getUIContext().px2vp(avoidArea.topRect.height);
+    } catch (e) {
+      return 0;
+    }
   }
 
   static getNavBarHeightVp(win: window.Window): number {
-    const avoidArea: window.AvoidArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-    return px2vp(avoidArea.bottomRect.height);
+    try {
+      const avoidArea: window.AvoidArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      return win.getUIContext().px2vp(avoidArea.bottomRect.height);
+    } catch (e) {
+      return 0;
+    }
   }
 
   static async applySystemBar(win: window.Window, isDark: boolean): Promise<void> {
