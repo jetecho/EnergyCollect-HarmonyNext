@@ -5,12 +5,10 @@ import { Database } from '../data/Database';
 import { PreferencesUtil } from '../data/PreferencesUtil';
 import { Immersive } from '../utils/Immersive';
 
-const DOMAIN: number = 0x0000;
+const DOMAIN: number = 0x0001;
 const TAG: string = 'EnergyCollect';
 
 export default class EntryAbility extends UIAbility {
-  private mainWindow: window.Window | null = null;
-
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, TAG, '%{public}s', 'onCreate');
   }
@@ -33,12 +31,10 @@ export default class EntryAbility extends UIAbility {
     }
 
     const colorMode: number = await PreferencesUtil.getColorMode();
-    const currentDeviceId: number = await PreferencesUtil.getCurrentDeviceId();
     const defaultDeviceId: number = await PreferencesUtil.getDefaultDeviceId();
     const systemColorMode: number = this.getSystemColorMode();
 
     AppStorage.setOrCreate('colorMode', colorMode);
-    AppStorage.setOrCreate('currentDeviceId', currentDeviceId > 0 ? currentDeviceId : -1);
     AppStorage.setOrCreate('defaultDeviceId', defaultDeviceId > 0 ? defaultDeviceId : -1);
     AppStorage.setOrCreate('dataVersion', 0);
     AppStorage.setOrCreate('systemColorMode', systemColorMode);
@@ -47,7 +43,6 @@ export default class EntryAbility extends UIAbility {
 
     try {
       const win: window.Window = await Immersive.setup(windowStage);
-      this.mainWindow = win;
       const sbH: number = Immersive.getStatusBarHeightVp(win);
       const navH: number = Immersive.getNavBarHeightVp(win);
       AppStorage.setOrCreate('statusBarHeight', sbH);
@@ -99,18 +94,9 @@ export default class EntryAbility extends UIAbility {
     }
   }
 
-  async applyColorModeFromOutside(colorMode: number): Promise<void> {
-    this.applyColorMode(colorMode);
-    if (this.mainWindow !== null) {
-      const systemColorMode: number = this.getSystemColorMode();
-      const isDark: boolean = Immersive.isDarkMode(colorMode, systemColorMode);
-      await Immersive.applySystemBar(this.mainWindow, isDark);
-    }
-  }
-
   onWindowStageDestroy(): void {
     hilog.info(DOMAIN, TAG, '%{public}s', 'onWindowStageDestroy');
-    this.mainWindow = null;
+    Immersive.clear();
   }
 
   onForeground(): void {
@@ -130,9 +116,6 @@ export default class EntryAbility extends UIAbility {
     const systemColorMode: number = cm;
     AppStorage.setOrCreate('systemColorMode', systemColorMode);
     const colorMode: number = AppStorage.get<number>('colorMode') ?? -1;
-    if (this.mainWindow !== null) {
-      const isDark: boolean = Immersive.isDarkMode(colorMode, systemColorMode);
-      Immersive.applySystemBar(this.mainWindow, isDark);
-    }
+    Immersive.applyColorMode(colorMode, systemColorMode);
   }
 }

@@ -407,6 +407,22 @@
     {
       "name": "duration_second",
       "value": "秒"
+    },
+    {
+      "name": "symbol_close",
+      "value": "✕"
+    },
+    {
+      "name": "symbol_chevron",
+      "value": "›"
+    },
+    {
+      "name": "symbol_plus",
+      "value": "+"
+    },
+    {
+      "name": "symbol_dot",
+      "value": "·"
     }
   ]
 }

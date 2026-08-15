@@ -116,7 +116,7 @@ export struct DeviceCard {
               .fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.text_secondary'))
             if (isNev(this.card.device.icon) && this.card.currentRange >= 0) {
-              Text('·')
+              Text($r('app.string.symbol_dot'))
                 .fontSize(13)
                 .fontColor($r('app.color.text_tertiary'))
               Text(`${this.card.currentRange}km`)
@@ -334,8 +334,14 @@ export struct HomeTab {
     const startToday: number = DateTimeUtil.startOfToday();
     const cards: DeviceCardData[] = [];
     for (const d of ordered) {
-      const active: Session | null = await this.sessionRepo.getActive(d.id);
       const sessions: Session[] = await this.sessionRepo.listFiltered(d.id, -1);
+      let active: Session | null = null;
+      for (const s of sessions) {
+        if (s.isActive()) {
+          active = s;
+          break;
+        }
+      }
       let currentBattery: number = 100;
       let currentRange: number = -1;
       if (isNev(d.icon) && d.rangeRated > 0) {
@@ -423,29 +429,12 @@ export struct HomeTab {
 
   private async confirmStart(deviceId: number, type: SessionType, battery: number, note: string, range: number): Promise<void> {
     if (type === SessionType.USAGE) {
-      await this.maybeInsertIdleDrain(deviceId, battery);
+      await this.sessionRepo.startUsageSession(deviceId, battery, note, range);
+    } else {
+      await this.sessionRepo.startSession(deviceId, type, battery, note, range);
     }
-    await this.sessionRepo.startSession(deviceId, type, battery, note, range);
     this.bump();
     this.loadData();
-  }
-
-  private async maybeInsertIdleDrain(deviceId: number, startBattery: number): Promise<void> {
-    const sessions: Session[] = await this.sessionRepo.listFiltered(deviceId, -1);
-    let lastCompleted: Session | null = null;
-    for (const s of sessions) {
-      if (s.isCompleted()) {
-        lastCompleted = s;
-        break;
-      }
-    }
-    if (lastCompleted !== null && startBattery < lastCompleted.endBattery) {
-      await this.sessionRepo.insertCompleted(
-        deviceId, SessionType.IDLE,
-        lastCompleted.endBattery, startBattery,
-        lastCompleted.endTime, Date.now()
-      );
-    }
   }
 
   private async confirmEnd(id: number, battery: number, range: number): Promise<void> {

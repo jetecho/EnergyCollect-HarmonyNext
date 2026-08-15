@@ -38,14 +38,6 @@ const SQL_INDEX_SESSION_DEVICE: string =
 const SQL_INDEX_SESSION_TIME: string =
   'CREATE INDEX IF NOT EXISTS idx_sessions_time ON sessions(start_time)';
 
-const SQL_ALTERS: string[] = [
-  'ALTER TABLE devices ADD COLUMN battery_capacity INTEGER DEFAULT 0',
-  'ALTER TABLE devices ADD COLUMN range_rated INTEGER DEFAULT 0',
-  "ALTER TABLE devices ADD COLUMN stat_mode TEXT DEFAULT ''",
-  'ALTER TABLE sessions ADD COLUMN start_range INTEGER DEFAULT -1',
-  'ALTER TABLE sessions ADD COLUMN end_range INTEGER DEFAULT -1'
-];
-
 export class Database {
   private static instance: Database | null = null;
   private store: relationalStore.RdbStore | null = null;
@@ -69,11 +61,34 @@ export class Database {
     await this.store.executeSql(SQL_CREATE_SESSIONS);
     await this.store.executeSql(SQL_INDEX_SESSION_DEVICE);
     await this.store.executeSql(SQL_INDEX_SESSION_TIME);
-    for (const sql of SQL_ALTERS) {
-      try {
-        await this.store.executeSql(sql);
-      } catch (e) {
+    await this.migrate();
+  }
+
+  private async migrate(): Promise<void> {
+    await this.ensureColumn('devices', 'battery_capacity', 'ALTER TABLE devices ADD COLUMN battery_capacity INTEGER DEFAULT 0');
+    await this.ensureColumn('devices', 'range_rated', 'ALTER TABLE devices ADD COLUMN range_rated INTEGER DEFAULT 0');
+    await this.ensureColumn('devices', 'stat_mode', "ALTER TABLE devices ADD COLUMN stat_mode TEXT DEFAULT ''");
+    await this.ensureColumn('sessions', 'start_range', 'ALTER TABLE sessions ADD COLUMN start_range INTEGER DEFAULT -1');
+    await this.ensureColumn('sessions', 'end_range', 'ALTER TABLE sessions ADD COLUMN end_range INTEGER DEFAULT -1');
+  }
+
+  private async ensureColumn(table: string, column: string, alterSql: string): Promise<void> {
+    const store: relationalStore.RdbStore = this.getStore();
+    const resultSet: relationalStore.ResultSet = await store.querySql(`PRAGMA table_info(${table})`);
+    let exists: boolean = false;
+    try {
+      while (resultSet.goToNextRow()) {
+        const name: string = resultSet.getString(resultSet.getColumnIndex('name'));
+        if (name === column) {
+          exists = true;
+          break;
+        }
       }
+    } finally {
+      resultSet.close();
+    }
+    if (!exists) {
+      await store.executeSql(alterSql);
     }
   }
 
@@ -82,5 +97,17 @@ export class Database {
       throw new Error('Database not initialized. Call init() first.');
     }
     return this.store;
+  }
+
+  beginTransaction(): void {
+    this.getStore().beginTransaction();
+  }
+
+  commitTransaction(): void {
+    this.getStore().commit();
+  }
+
+  rollbackTransaction(): void {
+    this.getStore().rollBack();
   }
 }

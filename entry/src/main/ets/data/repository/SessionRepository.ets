@@ -8,29 +8,16 @@ export class SessionRepository {
 
   async listFiltered(deviceId: number, typeFilter: number): Promise<Session[]> {
     const store: relationalStore.RdbStore = this.db.getStore();
-    let sql: string = 'SELECT * FROM sessions WHERE 1 = 1';
+    const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('sessions');
     if (deviceId > 0) {
-      sql += ' AND device_id = ' + deviceId;
+      pred.equalTo('device_id', deviceId);
     }
     if (typeFilter >= 0) {
-      sql += ' AND type = ' + typeFilter;
+      pred.equalTo('type', typeFilter);
     }
-    sql += ' ORDER BY start_time DESC';
-    const resultSet: relationalStore.ResultSet = await store.querySql(sql);
+    pred.orderByDesc('start_time');
+    const resultSet: relationalStore.ResultSet = await store.query(pred);
     return this.mapSessions(resultSet);
-  }
-
-  async getActive(deviceId: number): Promise<Session | null> {
-    const store: relationalStore.RdbStore = this.db.getStore();
-    const sql: string =
-      'SELECT * FROM sessions WHERE device_id = ' + deviceId +
-      ' AND end_time IS NULL ORDER BY start_time DESC LIMIT 1';
-    const resultSet: relationalStore.ResultSet = await store.querySql(sql);
-    const list: Session[] = this.mapSessions(resultSet);
-    if (list.length === 0) {
-      return null;
-    }
-    return list[0];
   }
 
   async startSession(deviceId: number, type: SessionType, startBattery: number, note: string, startRange?: number): Promise<number> {
@@ -46,6 +33,34 @@ export class SessionRepository {
       'start_range': startRange ?? -1
     };
     return await store.insert('sessions', values);
+  }
+
+  async startUsageSession(deviceId: number, startBattery: number, note: string, startRange: number): Promise<number> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    store.beginTransaction();
+    try {
+      const sessions: Session[] = await this.listFiltered(deviceId, -1);
+      let lastCompleted: Session | null = null;
+      for (const s of sessions) {
+        if (s.isCompleted()) {
+          lastCompleted = s;
+          break;
+        }
+      }
+      if (lastCompleted !== null && startBattery < lastCompleted.endBattery) {
+        await this.insertCompleted(
+          deviceId, SessionType.IDLE,
+          lastCompleted.endBattery, startBattery,
+          lastCompleted.endTime, Date.now()
+        );
+      }
+      const id: number = await this.startSession(deviceId, SessionType.USAGE, startBattery, note, startRange);
+      store.commit();
+      return id;
+    } catch (e) {
+      store.rollBack();
+      throw new Error('Failed to start usage session');
+    }
   }
 
   async insertCompleted(deviceId: number, type: SessionType, startBattery: number, endBattery: number, startTime: number, endTime: number, startRange?: number, endRange?: number): Promise<number> {
@@ -110,31 +125,34 @@ export class SessionRepository {
 
   private mapSessions(resultSet: relationalStore.ResultSet): Session[] {
     const list: Session[] = [];
-    while (resultSet.goToNextRow()) {
-      const s: Session = new Session();
-      s.id = resultSet.getLong(resultSet.getColumnIndex('id'));
-      s.deviceId = resultSet.getLong(resultSet.getColumnIndex('device_id'));
-      const typeVal: number = resultSet.getLong(resultSet.getColumnIndex('type'));
-      if (typeVal === 0) {
-        s.type = SessionType.USAGE;
-      } else if (typeVal === 2) {
-        s.type = SessionType.CHARGING;
-      } else {
-        s.type = SessionType.IDLE;
+    try {
+      while (resultSet.goToNextRow()) {
+        const s: Session = new Session();
+        s.id = resultSet.getLong(resultSet.getColumnIndex('id'));
+        s.deviceId = resultSet.getLong(resultSet.getColumnIndex('device_id'));
+        const typeVal: number = resultSet.getLong(resultSet.getColumnIndex('type'));
+        if (typeVal === 0) {
+          s.type = SessionType.USAGE;
+        } else if (typeVal === 2) {
+          s.type = SessionType.CHARGING;
+        } else {
+          s.type = SessionType.IDLE;
+        }
+        s.startBattery = resultSet.getLong(resultSet.getColumnIndex('start_battery'));
+        s.endBattery = resultSet.getLong(resultSet.getColumnIndex('end_battery'));
+        s.startTime = resultSet.getLong(resultSet.getColumnIndex('start_time'));
+        s.endTime = resultSet.getLong(resultSet.getColumnIndex('end_time'));
+        s.note = resultSet.getString(resultSet.getColumnIndex('note'));
+        s.createdAt = resultSet.getLong(resultSet.getColumnIndex('created_at'));
+        const srIdx: number = resultSet.getColumnIndex('start_range');
+        s.startRange = srIdx >= 0 ? resultSet.getLong(srIdx) : -1;
+        const erIdx: number = resultSet.getColumnIndex('end_range');
+        s.endRange = erIdx >= 0 ? resultSet.getLong(erIdx) : -1;
+        list.push(s);
       }
-      s.startBattery = resultSet.getLong(resultSet.getColumnIndex('start_battery'));
-      s.endBattery = resultSet.getLong(resultSet.getColumnIndex('end_battery'));
-      s.startTime = resultSet.getLong(resultSet.getColumnIndex('start_time'));
-      s.endTime = resultSet.getLong(resultSet.getColumnIndex('end_time'));
-      s.note = resultSet.getString(resultSet.getColumnIndex('note'));
-      s.createdAt = resultSet.getLong(resultSet.getColumnIndex('created_at'));
-      const srIdx: number = resultSet.getColumnIndex('start_range');
-      s.startRange = srIdx >= 0 ? resultSet.getLong(srIdx) : -1;
-      const erIdx: number = resultSet.getColumnIndex('end_range');
-      s.endRange = erIdx >= 0 ? resultSet.getLong(erIdx) : -1;
-      list.push(s);
+    } finally {
+      resultSet.close();
     }
-    resultSet.close();
     return list;
   }
 }

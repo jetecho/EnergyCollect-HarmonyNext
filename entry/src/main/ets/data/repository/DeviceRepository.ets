@@ -16,8 +16,9 @@ export class DeviceRepository {
 
   async getById(id: number): Promise<Device | null> {
     const store: relationalStore.RdbStore = this.db.getStore();
-    const resultSet: relationalStore.ResultSet =
-      await store.querySql('SELECT * FROM devices WHERE id = ' + id);
+    const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('devices');
+    pred.equalTo('id', id);
+    const resultSet: relationalStore.ResultSet = await store.query(pred);
     const list: Device[] = this.mapDevices(resultSet);
     if (list.length === 0) {
       return null;
@@ -30,10 +31,13 @@ export class DeviceRepository {
     const resultSet: relationalStore.ResultSet =
       await store.querySql('SELECT COUNT(*) AS c FROM devices WHERE archived = 0');
     let count: number = 0;
-    if (resultSet.goToFirstRow()) {
-      count = resultSet.getLong(resultSet.getColumnIndex('c'));
+    try {
+      if (resultSet.goToFirstRow()) {
+        count = resultSet.getLong(resultSet.getColumnIndex('c'));
+      }
+    } finally {
+      resultSet.close();
     }
-    resultSet.close();
     return count;
   }
 
@@ -69,33 +73,43 @@ export class DeviceRepository {
 
   async delete(id: number): Promise<void> {
     const store: relationalStore.RdbStore = this.db.getStore();
-    const predSession: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('sessions');
-    predSession.equalTo('device_id', id);
-    await store.delete(predSession);
-    const predDevice: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('devices');
-    predDevice.equalTo('id', id);
-    await store.delete(predDevice);
+    store.beginTransaction();
+    try {
+      const predSession: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('sessions');
+      predSession.equalTo('device_id', id);
+      await store.delete(predSession);
+      const predDevice: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('devices');
+      predDevice.equalTo('id', id);
+      await store.delete(predDevice);
+      store.commit();
+    } catch (e) {
+      store.rollBack();
+      throw new Error('Failed to delete device');
+    }
   }
 
   private mapDevices(resultSet: relationalStore.ResultSet): Device[] {
     const list: Device[] = [];
-    while (resultSet.goToNextRow()) {
-      const d: Device = new Device();
-      d.id = resultSet.getLong(resultSet.getColumnIndex('id'));
-      d.name = resultSet.getString(resultSet.getColumnIndex('name'));
-      d.icon = resultSet.getString(resultSet.getColumnIndex('icon'));
-      d.sortOrder = resultSet.getLong(resultSet.getColumnIndex('sort_order'));
-      d.archived = resultSet.getLong(resultSet.getColumnIndex('archived')) !== 0;
-      d.createdAt = resultSet.getLong(resultSet.getColumnIndex('created_at'));
-      const capIdx: number = resultSet.getColumnIndex('battery_capacity');
-      d.batteryCapacity = capIdx >= 0 ? resultSet.getLong(capIdx) : 0;
-      const rangeIdx: number = resultSet.getColumnIndex('range_rated');
-      d.rangeRated = rangeIdx >= 0 ? resultSet.getLong(rangeIdx) : 0;
-      const modeIdx: number = resultSet.getColumnIndex('stat_mode');
-      d.statMode = modeIdx >= 0 ? resultSet.getString(modeIdx) : '';
-      list.push(d);
+    try {
+      while (resultSet.goToNextRow()) {
+        const d: Device = new Device();
+        d.id = resultSet.getLong(resultSet.getColumnIndex('id'));
+        d.name = resultSet.getString(resultSet.getColumnIndex('name'));
+        d.icon = resultSet.getString(resultSet.getColumnIndex('icon'));
+        d.sortOrder = resultSet.getLong(resultSet.getColumnIndex('sort_order'));
+        d.archived = resultSet.getLong(resultSet.getColumnIndex('archived')) !== 0;
+        d.createdAt = resultSet.getLong(resultSet.getColumnIndex('created_at'));
+        const capIdx: number = resultSet.getColumnIndex('battery_capacity');
+        d.batteryCapacity = capIdx >= 0 ? resultSet.getLong(capIdx) : 0;
+        const rangeIdx: number = resultSet.getColumnIndex('range_rated');
+        d.rangeRated = rangeIdx >= 0 ? resultSet.getLong(rangeIdx) : 0;
+        const modeIdx: number = resultSet.getColumnIndex('stat_mode');
+        d.statMode = modeIdx >= 0 ? resultSet.getString(modeIdx) : '';
+        list.push(d);
+      }
+    } finally {
+      resultSet.close();
     }
-    resultSet.close();
     return list;
   }
 }

@@ -6,16 +6,12 @@ import { SessionType } from '../../model/SessionType';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
 import { SessionRepository } from '../../data/repository/SessionRepository';
 import { PreferencesUtil } from '../../data/PreferencesUtil';
+import { Database } from '../../data/Database';
 import { Immersive } from '../../utils/Immersive';
-import { promptAction, window } from '@kit.ArkUI';
+import { promptAction } from '@kit.ArkUI';
 import { ConfigurationConstant } from '@kit.AbilityKit';
 import { picker, fileIo } from '@kit.CoreFileKit';
-import util from '@ohos.util';
-
-interface DeviceExportRow {
-  name: string;
-  icon: string;
-}
+import { util } from '@kit.ArkTS';
 
 interface ExportDeviceV2 {
   name: string;
@@ -40,7 +36,7 @@ interface ExportSessionV2 {
 @Component
 export struct MineTab {
   @StorageProp('dataVersion') @Watch('reload') dataVersion: number = 0;
-  @StorageProp('colorMode') @Watch('onColorModeChanged') colorMode: number = -1;
+  @StorageProp('colorMode') colorMode: number = -1;
   @State devices: Device[] = [];
   @State showSheet: boolean = false;
   @State sheetTitle: ResourceStr = $r('app.string.dialog_new_device_title');
@@ -74,9 +70,6 @@ export struct MineTab {
   private bump(): void {
     const v: number = AppStorage.get<number>('dataVersion') ?? 0;
     AppStorage.setOrCreate('dataVersion', v + 1);
-  }
-
-  onColorModeChanged(): void {
   }
 
   private openAddSheet(): void {
@@ -142,12 +135,12 @@ export struct MineTab {
     const deleteId: number = this.sheetId;
     this.showSheet = false;
     await this.deviceRepo.delete(deleteId);
-    const cur: number = AppStorage.get<number>('currentDeviceId') ?? -1;
-    if (cur === deleteId) {
+    const defId: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
+    if (defId === deleteId) {
       const remaining: Device[] = await this.deviceRepo.listAll(false);
       const next: number = remaining.length > 0 ? remaining[0].id : -1;
-      AppStorage.setOrCreate('currentDeviceId', next);
-      PreferencesUtil.setCurrentDeviceId(next);
+      AppStorage.setOrCreate('defaultDeviceId', next);
+      await PreferencesUtil.setDefaultDeviceId(next);
     }
     this.bump();
   }
@@ -168,12 +161,8 @@ export struct MineTab {
       ctx.getApplicationContext().setColorMode(constMode);
     } catch (e) {
     }
-    try {
-      const win: window.Window = await window.getLastWindow(ctx);
-      const sysMode: number = AppStorage.get<number>('systemColorMode') ?? 0;
-      await Immersive.applySystemBar(win, Immersive.isDarkMode(mode, sysMode));
-    } catch (e) {
-    }
+    const sysMode: number = AppStorage.get<number>('systemColorMode') ?? 0;
+    await Immersive.applyColorMode(mode, sysMode);
   }
 
   private colorModeLabel(): ResourceStr {
@@ -245,13 +234,25 @@ export struct MineTab {
       const json: string = JSON.stringify(payload);
       const saveOptions: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
       saveOptions.newFileNames = [`energy_export_${Date.now()}.json`];
-      const savePicker: picker.DocumentViewPicker = new picker.DocumentViewPicker();
+      const savePicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(getContext(this));
       const uris: string[] = await savePicker.save(saveOptions);
       if (uris === undefined || uris === null || uris.length === 0) {
         return;
       }
-      const file: fileIo.File = fileIo.openSync(uris[0], fileIo.OpenMode.READ_WRITE);
-      fileIo.writeSync(file.fd, json);
+      const file: fileIo.File = fileIo.openSync(uris[0], fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
+      const encoder: util.TextEncoder = new util.TextEncoder();
+      const data: Uint8Array = encoder.encodeInto(json);
+      let written: number = 0;
+      while (written < data.byteLength) {
+        const n: number = fileIo.writeSync(file.fd, data.buffer, {
+          offset: data.byteOffset + written,
+          length: data.byteLength - written
+        });
+        if (n <= 0) {
+          break;
+        }
+        written += n;
+      }
       fileIo.closeSync(file);
       promptAction.showToast({ message: $r('app.string.toast_export_success') });
     } catch (e) {
@@ -262,7 +263,7 @@ export struct MineTab {
   private async importData(): Promise<void> {
     try {
       const options: picker.DocumentSelectOptions = new picker.DocumentSelectOptions();
-      const selectPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker();
+      const selectPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(getContext(this));
       const uris: string[] = await selectPicker.select(options);
       if (uris === undefined || uris === null || uris.length === 0) {
         return;
@@ -270,10 +271,20 @@ export struct MineTab {
       const file: fileIo.File = fileIo.openSync(uris[0], fileIo.OpenMode.READ_ONLY);
       const stat: fileIo.Stat = fileIo.statSync(file.fd);
       const buf: ArrayBuffer = new ArrayBuffer(stat.size);
-      fileIo.readSync(file.fd, buf);
+      let readTotal: number = 0;
+      while (readTotal < stat.size) {
+        const n: number = fileIo.readSync(file.fd, buf, {
+          offset: readTotal,
+          length: stat.size - readTotal
+        });
+        if (n <= 0) {
+          break;
+        }
+        readTotal += n;
+      }
       fileIo.closeSync(file);
       const decoder: util.TextDecoder = util.TextDecoder.create('utf-8');
-      const text: string = decoder.decodeWithStream(new Uint8Array(buf));
+      const text: string = decoder.decodeWithStream(new Uint8Array(buf, 0, readTotal));
       const parsed: Object = JSON.parse(text);
       const obj: Record<string, Object> = parsed as Record<string, Object>;
       const appField: Object | undefined = obj['app'];
@@ -289,52 +300,63 @@ export struct MineTab {
       const devArr: Object[] = devField as Object[];
       const indexToNewId: Map<number, number> = new Map<number, number>();
       let devCount: number = 0;
-      for (let i = 0; i < devArr.length; i++) {
-        const row: Record<string, Object> = devArr[i] as Record<string, Object>;
-        const nameField: Object | undefined = row['name'];
-        const iconField: Object | undefined = row['icon'];
-        if (nameField !== undefined && typeof nameField === 'string' && nameField.length > 0 &&
-          iconField !== undefined && typeof iconField === 'string') {
-          const newId: number = await this.deviceRepo.insert(
-            nameField, iconField,
-            this.readNumber(row['capacity']),
-            this.readNumber(row['rangeRated']),
-            this.readString(row['statMode'])
-          );
-          indexToNewId.set(i, newId);
-          devCount++;
-        }
-      }
-      let sessCount: number = 0;
-      const sessField: Object | undefined = obj['sessions'];
-      if (sessField !== undefined && sessField instanceof Array) {
-        const sessArr: Object[] = sessField as Object[];
-        for (const item of sessArr) {
-          const row: Record<string, Object> = item as Record<string, Object>;
-          const idx: number = this.readNumber(row['deviceIndex']);
-          const newDeviceId: number | undefined = indexToNewId.get(idx);
-          if (newDeviceId === undefined) {
-            continue;
+      const db: Database = Database.getInstance();
+      db.beginTransaction();
+      try {
+        for (let i = 0; i < devArr.length; i++) {
+          const row: Record<string, Object> = devArr[i] as Record<string, Object>;
+          const nameField: Object | undefined = row['name'];
+          const iconField: Object | undefined = row['icon'];
+          if (nameField !== undefined && typeof nameField === 'string' && nameField.length > 0 &&
+            iconField !== undefined && typeof iconField === 'string') {
+            const newId: number = await this.deviceRepo.insert(
+              nameField, iconField,
+              this.readNumber(row['capacity']),
+              this.readNumber(row['rangeRated']),
+              this.readString(row['statMode'])
+            );
+            indexToNewId.set(i, newId);
+            devCount++;
           }
-          const typeNum: number = this.readNumber(row['type']);
-          const type: SessionType = typeNum === 2 ? SessionType.CHARGING : (typeNum === 1 ? SessionType.IDLE : SessionType.USAGE);
-          await this.sessionRepo.importSession(
-            newDeviceId, type,
-            this.readNumber(row['startBattery']),
-            this.readNumber(row['endBattery']),
-            this.readNumber(row['startTime']),
-            this.readNumber(row['endTime']),
-            this.readString(row['note']),
-            this.readNumber(row['startRange']),
-            this.readNumber(row['endRange'])
-          );
-          sessCount++;
         }
-      }
-      if (devCount > 0 || sessCount > 0) {
-        this.bump();
-        promptAction.showToast({ message: $r('app.string.toast_import_success') });
-      } else {
+        let sessCount: number = 0;
+        const sessField: Object | undefined = obj['sessions'];
+        if (sessField !== undefined && sessField instanceof Array) {
+          const sessArr: Object[] = sessField as Object[];
+          for (const item of sessArr) {
+            const row: Record<string, Object> = item as Record<string, Object>;
+            const idx: number = this.readNumber(row['deviceIndex']);
+            const newDeviceId: number | undefined = indexToNewId.get(idx);
+            if (newDeviceId === undefined) {
+              continue;
+            }
+            const typeNum: number = this.readNumber(row['type']);
+            if (typeNum < 0 || typeNum > 2) {
+              continue;
+            }
+            const type: SessionType = typeNum === 2 ? SessionType.CHARGING : (typeNum === 1 ? SessionType.IDLE : SessionType.USAGE);
+            await this.sessionRepo.importSession(
+              newDeviceId, type,
+              this.readNumber(row['startBattery'], 0, 100),
+              this.readNumber(row['endBattery'], 0, 100),
+              this.readNumber(row['startTime'], 0),
+              this.readNumber(row['endTime'], 0),
+              this.readString(row['note']),
+              this.readNumber(row['startRange']),
+              this.readNumber(row['endRange'])
+            );
+            sessCount++;
+          }
+        }
+        db.commitTransaction();
+        if (devCount > 0 || sessCount > 0) {
+          this.bump();
+          promptAction.showToast({ message: $r('app.string.toast_import_success') });
+        } else {
+          promptAction.showToast({ message: $r('app.string.toast_import_fail') });
+        }
+      } catch (e) {
+        db.rollbackTransaction();
         promptAction.showToast({ message: $r('app.string.toast_import_fail') });
       }
     } catch (e) {
@@ -342,11 +364,18 @@ export struct MineTab {
     }
   }
 
-  private readNumber(field: Object | undefined): number {
-    if (field !== undefined && typeof field === 'number') {
-      return field;
+  private readNumber(field: Object | undefined, min?: number, max?: number): number {
+    let v: number = 0;
+    if (field !== undefined && typeof field === 'number' && !isNaN(field)) {
+      v = field;
     }
-    return 0;
+    if (min !== undefined && v < min) {
+      v = min;
+    }
+    if (max !== undefined && v > max) {
+      v = max;
+    }
+    return v;
   }
 
   private readString(field: Object | undefined): string {
@@ -373,8 +402,8 @@ export struct MineTab {
 
   private async doClear(): Promise<void> {
     await this.sessionRepo.deleteAll();
-    AppStorage.setOrCreate('currentDeviceId', -1);
-    PreferencesUtil.setCurrentDeviceId(-1);
+    AppStorage.setOrCreate('defaultDeviceId', -1);
+    await PreferencesUtil.setDefaultDeviceId(-1);
     this.bump();
   }
 
@@ -535,7 +564,7 @@ export struct MineTab {
   @Builder
   AddDeviceButton() {
     Row({ space: 8 }) {
-      Text('+')
+      Text($r('app.string.symbol_plus'))
         .fontSize(18)
         .fontColor($r('app.color.brand'))
       Text($r('app.string.mine_add_device'))
@@ -578,7 +607,7 @@ export struct MineTab {
           Text(this.colorModeLabel())
             .fontSize(14)
             .fontColor($r('app.color.text_secondary'))
-          Text('›')
+          Text($r('app.string.symbol_chevron'))
             .fontSize(18)
             .fontColor($r('app.color.text_tertiary'))
             .margin({ left: 6 })
@@ -605,7 +634,7 @@ export struct MineTab {
         .fontSize(15)
         .fontColor(danger ? $r('app.color.danger') : $r('app.color.text_primary'))
       Blank()
-      Text('›')
+      Text($r('app.string.symbol_chevron'))
         .fontSize(18)
         .fontColor($r('app.color.text_tertiary'))
     }

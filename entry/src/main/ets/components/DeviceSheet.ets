@@ -45,7 +45,7 @@ export struct DeviceSheet {
           .fontWeight(FontWeight.Bold)
           .fontColor($r('app.color.text_primary'))
         Blank()
-        Text('✕')
+        Text($r('app.string.symbol_close'))
           .fontSize(20)
           .fontColor($r('app.color.text_tertiary'))
           .onClick(() => {
