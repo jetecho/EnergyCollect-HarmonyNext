@@ -1,4 +1,4 @@
-import { window } from '@kit.ArkUI';
+import { window, display } from '@kit.ArkUI';
 
 export class Immersive {
   private static mainWindow: window.Window | null = null;
@@ -8,11 +8,16 @@ export class Immersive {
       const win: window.Window = await windowStage.getMainWindow();
       Immersive.mainWindow = win;
       await win.setWindowLayoutFullScreen(true);
-      const uiCtx: UIContext = win.getUIContext();
       win.on('avoidAreaChange', (data: window.AvoidAreaOptions) => {
         if (data.type === window.AvoidAreaType.TYPE_SYSTEM) {
-          AppStorage.setOrCreate('statusBarHeight', uiCtx.px2vp(data.area.topRect.height));
-          AppStorage.setOrCreate('navBarHeight', uiCtx.px2vp(data.area.bottomRect.height));
+          const sbH: number = Immersive.pxToVp(data.area.topRect.height);
+          const navH: number = Immersive.pxToVp(data.area.bottomRect.height);
+          if (sbH > 0) {
+            AppStorage.setOrCreate('statusBarHeight', sbH);
+          }
+          if (navH > 0) {
+            AppStorage.setOrCreate('navBarHeight', navH);
+          }
         }
       });
       return win;
@@ -41,7 +46,7 @@ export class Immersive {
   static getStatusBarHeightVp(win: window.Window): number {
     try {
       const avoidArea: window.AvoidArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      return win.getUIContext().px2vp(avoidArea.topRect.height);
+      return Immersive.pxToVp(avoidArea.topRect.height);
     } catch (e) {
       return 0;
     }
@@ -50,7 +55,7 @@ export class Immersive {
   static getNavBarHeightVp(win: window.Window): number {
     try {
       const avoidArea: window.AvoidArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      return win.getUIContext().px2vp(avoidArea.bottomRect.height);
+      return Immersive.pxToVp(avoidArea.bottomRect.height);
     } catch (e) {
       return 0;
     }
@@ -76,5 +81,13 @@ export class Immersive {
       return false;
     }
     return systemColorMode === 1;
+  }
+
+  private static pxToVp(px: number): number {
+    try {
+      return px / display.getDefaultDisplaySync().densityPixels;
+    } catch (e) {
+      return 0;
+    }
   }
 }
