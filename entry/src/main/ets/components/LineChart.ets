@@ -23,6 +23,8 @@ export struct TrendChart {
     this.model.getAxisLeft()?.setDrawGridLines(true);
     this.model.setScaleEnabled(false);
     this.model.setDragXEnabled(true);
+    this.model.setHighlightPerTapEnabled(false);
+    this.model.setHighlightPerDragEnabled(false);
   }
 
   refresh(): void {

@@ -18,9 +18,13 @@ export struct SessionBarChart {
     this.model.getDescription()?.setEnabled(false);
     this.model.getLegend()?.setEnabled(false);
     this.model.getXAxis()?.setPosition(XAxisPosition.BOTTOM);
+    this.model.getXAxis()?.setDrawGridLines(false);
     this.model.getAxisRight()?.setEnabled(false);
+    this.model.getAxisLeft()?.setDrawGridLines(true);
     this.model.setScaleEnabled(false);
     this.model.setDragXEnabled(true);
+    this.model.setHighlightPerTapEnabled(false);
+    this.model.setHighlightPerDragEnabled(false);
     this.model.setDrawValueAboveBar(true);
   }
 
