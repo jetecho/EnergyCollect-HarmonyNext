@@ -148,7 +148,7 @@ export struct MineTab {
   private async applyColorMode(mode: number): Promise<void> {
     AppStorage.setOrCreate('colorMode', mode);
     await PreferencesUtil.setColorMode(mode);
-    const ctx: Context = getContext(this);
+    const ctx: Context = this.getUIContext().getHostContext();
     let constMode: number;
     if (mode === 1) {
       constMode = ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
@@ -234,7 +234,7 @@ export struct MineTab {
       const json: string = JSON.stringify(payload);
       const saveOptions: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
       saveOptions.newFileNames = [`energy_export_${Date.now()}.json`];
-      const savePicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(getContext(this));
+      const savePicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(this.getUIContext().getHostContext());
       const uris: string[] = await savePicker.save(saveOptions);
       if (uris === undefined || uris === null || uris.length === 0) {
         return;
@@ -263,7 +263,7 @@ export struct MineTab {
   private async importData(): Promise<void> {
     try {
       const options: picker.DocumentSelectOptions = new picker.DocumentSelectOptions();
-      const selectPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(getContext(this));
+      const selectPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(this.getUIContext().getHostContext());
       const uris: string[] = await selectPicker.select(options);
       if (uris === undefined || uris === null || uris.length === 0) {
         return;
@@ -284,7 +284,7 @@ export struct MineTab {
       }
       fileIo.closeSync(file);
       const decoder: util.TextDecoder = util.TextDecoder.create('utf-8');
-      const text: string = decoder.decodeWithStream(new Uint8Array(buf, 0, readTotal));
+      const text: string = decoder.decode(new Uint8Array(buf, 0, readTotal));
       const parsed: Object = JSON.parse(text);
       const obj: Record<string, Object> = parsed as Record<string, Object>;
       const appField: Object | undefined = obj['app'];

@@ -50,29 +50,19 @@ export class DateTimeUtil {
 
   static formatDuration(ms: number): string {
     if (ms <= 0) {
-      return '0' + DateTimeUtil.resStr($r('app.string.duration_second'));
+      return '0秒';
     }
     const totalSec: number = Math.floor(ms / 1000);
     const hours: number = Math.floor(totalSec / 3600);
     const minutes: number = Math.floor((totalSec % 3600) / 60);
     const seconds: number = totalSec % 60;
     if (hours > 0) {
-      return hours + DateTimeUtil.resStr($r('app.string.duration_hour')) +
-        minutes + DateTimeUtil.resStr($r('app.string.duration_minute'));
+      return hours + '时' + minutes + '分';
     }
     if (minutes > 0) {
-      return minutes + DateTimeUtil.resStr($r('app.string.duration_minute')) +
-        seconds + DateTimeUtil.resStr($r('app.string.duration_second'));
+      return minutes + '分' + seconds + '秒';
     }
-    return seconds + DateTimeUtil.resStr($r('app.string.duration_second'));
-  }
-
-  private static resStr(res: Resource): string {
-    try {
-      return getContext().resourceManager.getStringSync(res.id);
-    } catch (e) {
-      return '';
-    }
+    return seconds + '秒';
   }
 
   static formatClock(ms: number): string {
