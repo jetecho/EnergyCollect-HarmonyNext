@@ -385,6 +385,42 @@
       "value": "导入失败，文件格式不正确"
     },
     {
+      "name": "toast_import_version",
+      "value": "不支持的备份文件版本"
+    },
+    {
+      "name": "toast_action_failed",
+      "value": "操作失败，请重试"
+    },
+    {
+      "name": "dialog_import_title",
+      "value": "选择导入方式"
+    },
+    {
+      "name": "dialog_import_desc",
+      "value": "合并：保留现有数据并追加备份内容；替换：清空现有数据后导入备份内容。"
+    },
+    {
+      "name": "action_import_merge",
+      "value": "合并导入"
+    },
+    {
+      "name": "action_import_replace",
+      "value": "替换导入"
+    },
+    {
+      "name": "db_error_title",
+      "value": "数据库初始化失败"
+    },
+    {
+      "name": "db_error_desc",
+      "value": "请检查存储空间后重试"
+    },
+    {
+      "name": "db_error_retry",
+      "value": "重试"
+    },
+    {
       "name": "toast_name_empty",
       "value": "请填写设备名称"
     },

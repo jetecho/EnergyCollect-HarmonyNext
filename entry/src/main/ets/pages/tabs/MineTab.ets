@@ -70,7 +70,11 @@ export struct MineTab {
   }
 
   private async loadData(): Promise<void> {
-    this.devices = await this.deviceRepo.listAll(true);
+    try {
+      this.devices = await this.deviceRepo.listAll(true);
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'MineTab loadData failed: %{public}s', JSON.stringify(e));
+    }
   }
 
   private bump(): void {
@@ -87,12 +91,10 @@ export struct MineTab {
     }
   }
 
-  private showDialogSafe(options: promptAction.ShowDialogOptions, onConfirm: () => void): void {
+  private showDialogSafe(options: promptAction.ShowDialogOptions, onResult: (index: number) => void): void {
     try {
       this.promptAction.showDialog(options).then((res: promptAction.ShowDialogSuccessResponse) => {
-        if (res.index === 1) {
-          onConfirm();
-        }
+        onResult(res.index);
       }).catch((error: BusinessError) => {
         hilog.error(DOMAIN, TAG, 'showDialog failed: code=%{public}d, message=%{public}s', error.code, error.message);
       });
@@ -334,74 +336,118 @@ export struct MineTab {
         this.showToastSafe($r('app.string.toast_import_fail'));
         return;
       }
+      const versionField: Object | undefined = obj['version'];
+      if (versionField === undefined || typeof versionField !== 'number' || versionField !== 2) {
+        this.showToastSafe($r('app.string.toast_import_version'));
+        return;
+      }
       const devField: Object | undefined = obj['devices'];
       if (devField === undefined || !(devField instanceof Array)) {
         this.showToastSafe($r('app.string.toast_import_fail'));
         return;
       }
       const devArr: Object[] = devField as Object[];
-      const indexToNewId: Map<number, number> = new Map<number, number>();
-      let devCount: number = 0;
-      const db: Database = Database.getInstance();
+      const sessField: Object | undefined = obj['sessions'];
+      const sessArr: Object[] = (sessField !== undefined && sessField instanceof Array) ? sessField as Object[] : [];
+      this.showDialogSafe({
+        title: $r('app.string.dialog_import_title'),
+        message: $r('app.string.dialog_import_desc'),
+        buttons: [
+          { text: $r('app.string.action_cancel'), color: $r('app.color.text_secondary') },
+          { text: $r('app.string.action_import_merge'), color: $r('app.color.brand') },
+          { text: $r('app.string.action_import_replace'), color: $r('app.color.danger') }
+        ]
+      }, (index: number): void => {
+        if (index === 1) {
+          this.doImport(devArr, sessArr, false);
+        } else if (index === 2) {
+          this.doImport(devArr, sessArr, true);
+        }
+      });
+    } catch (e) {
+      this.showToastSafe($r('app.string.toast_import_fail'));
+    }
+  }
+
+  private async doImport(devArr: Object[], sessArr: Object[], replace: boolean): Promise<void> {
+    const db: Database = Database.getInstance();
+    const indexToNewId: Map<number, number> = new Map<number, number>();
+    let devCount: number = 0;
+    let sessCount: number = 0;
+    let firstNewDeviceId: number = -1;
+    try {
       db.beginTransaction();
-      try {
-        for (let i = 0; i < devArr.length; i++) {
-          const row: Record<string, Object> = devArr[i] as Record<string, Object>;
-          const nameField: Object | undefined = row['name'];
-          const iconField: Object | undefined = row['icon'];
-          if (nameField !== undefined && typeof nameField === 'string' && nameField.length > 0 &&
-            iconField !== undefined && typeof iconField === 'string') {
-            const newId: number = await this.deviceRepo.insert(
-              nameField, iconField,
-              this.readNumber(row['capacity']),
-              this.readNumber(row['rangeRated']),
-              this.readString(row['statMode'])
-            );
-            indexToNewId.set(i, newId);
-            devCount++;
+      if (replace) {
+        await this.sessionRepo.deleteAll();
+      }
+      for (let i = 0; i < devArr.length; i++) {
+        const row: Record<string, Object> = devArr[i] as Record<string, Object>;
+        const nameField: Object | undefined = row['name'];
+        const iconField: Object | undefined = row['icon'];
+        if (nameField !== undefined && typeof nameField === 'string' && nameField.length > 0 &&
+          iconField !== undefined && typeof iconField === 'string') {
+          const newId: number = await this.deviceRepo.insert(
+            nameField, iconField,
+            this.readNumber(row['capacity']),
+            this.readNumber(row['rangeRated']),
+            this.readString(row['statMode'])
+          );
+          indexToNewId.set(i, newId);
+          if (devCount === 0) {
+            firstNewDeviceId = newId;
           }
+          devCount++;
         }
-        let sessCount: number = 0;
-        const sessField: Object | undefined = obj['sessions'];
-        if (sessField !== undefined && sessField instanceof Array) {
-          const sessArr: Object[] = sessField as Object[];
-          for (const item of sessArr) {
-            const row: Record<string, Object> = item as Record<string, Object>;
-            const idx: number = this.readNumber(row['deviceIndex']);
-            const newDeviceId: number | undefined = indexToNewId.get(idx);
-            if (newDeviceId === undefined) {
-              continue;
-            }
-            const typeNum: number = this.readNumber(row['type']);
-            if (typeNum < 0 || typeNum > 2) {
-              continue;
-            }
-            const type: SessionType = typeNum === 2 ? SessionType.CHARGING : (typeNum === 1 ? SessionType.IDLE : SessionType.USAGE);
-            await this.sessionRepo.importSession(
-              newDeviceId, type,
-              this.readNumber(row['startBattery'], 0, 100),
-              this.readNumber(row['endBattery'], 0, 100),
-              this.readNumber(row['startTime'], 0),
-              this.readNumber(row['endTime'], 0),
-              this.readString(row['note']),
-              this.readNumber(row['startRange']),
-              this.readNumber(row['endRange'])
-            );
-            sessCount++;
-          }
+      }
+      for (const item of sessArr) {
+        const row: Record<string, Object> = item as Record<string, Object>;
+        const idx: number = this.readNumber(row['deviceIndex']);
+        const newDeviceId: number | undefined = indexToNewId.get(idx);
+        if (newDeviceId === undefined) {
+          continue;
         }
-        db.commitTransaction();
-        if (devCount > 0 || sessCount > 0) {
-          this.bump();
-          this.showToastSafe($r('app.string.toast_import_success'));
-        } else {
-          this.showToastSafe($r('app.string.toast_import_fail'));
+        const typeNum: number = this.readNumber(row['type']);
+        if (typeNum < 0 || typeNum > 2) {
+          continue;
         }
-      } catch (e) {
+        const type: SessionType = typeNum === 2 ? SessionType.CHARGING : (typeNum === 1 ? SessionType.IDLE : SessionType.USAGE);
+        await this.sessionRepo.importSession(
+          newDeviceId, type,
+          this.readNumber(row['startBattery'], 0, 100),
+          this.readNumber(row['endBattery'], 0, 100),
+          this.readNumber(row['startTime'], 0),
+          this.readNumber(row['endTime'], 0),
+          this.readString(row['note']),
+          this.readNumber(row['startRange']),
+          this.readNumber(row['endRange'])
+        );
+        sessCount++;
+      }
+      if (devCount === 0 && sessCount === 0) {
         db.rollbackTransaction();
         this.showToastSafe($r('app.string.toast_import_fail'));
+        return;
       }
+      db.commitTransaction();
+      if (devCount > 0) {
+        const curDefault: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
+        let defaultValid: boolean = false;
+        if (curDefault > 0) {
+          const exist: Device | null = await this.deviceRepo.getById(curDefault);
+          defaultValid = exist !== null;
+        }
+        if (!defaultValid) {
+          AppStorage.setOrCreate('defaultDeviceId', firstNewDeviceId);
+          await PreferencesUtil.setDefaultDeviceId(firstNewDeviceId);
+        }
+      }
+      this.bump();
+      this.showToastSafe(`导入成功：${devCount} 个设备，${sessCount} 条会话`);
     } catch (e) {
+      try {
+        db.rollbackTransaction();
+      } catch (e2) {
+      }
       this.showToastSafe($r('app.string.toast_import_fail'));
     }
   }
@@ -435,8 +481,10 @@ export struct MineTab {
         { text: $r('app.string.action_cancel'), color: $r('app.color.text_secondary') },
         { text: $r('app.string.action_confirm'), color: $r('app.color.danger') }
       ]
-    }, () => {
-      this.doClear();
+    }, (index: number): void => {
+      if (index === 1) {
+        this.doClear();
+      }
     });
   }
 
@@ -514,8 +562,10 @@ export struct MineTab {
         { text: $r('app.string.action_cancel'), color: $r('app.color.text_secondary') },
         { text: $r('app.string.action_delete'), color: $r('app.color.danger') }
       ]
-    }, () => {
-      this.onDeleteDevice();
+    }, (index: number): void => {
+      if (index === 1) {
+        this.onDeleteDevice();
+      }
     });
   }
 

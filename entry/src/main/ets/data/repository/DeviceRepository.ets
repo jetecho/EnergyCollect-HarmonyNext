@@ -1,6 +1,10 @@
 import { relationalStore } from '@kit.ArkData';
 import { Database } from '../Database';
 import { Device } from '../../model/Device';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+
+const DOMAIN: number = 0x0001;
+const TAG: string = 'EnergyCollect';
 
 export class DeviceRepository {
   private db: Database = Database.getInstance();
@@ -14,6 +18,7 @@ export class DeviceRepository {
       const resultSet: relationalStore.ResultSet = await store.querySql(sql);
       return this.mapDevices(resultSet);
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'listAll failed: %{public}s', JSON.stringify(e));
       throw new Error('listAll failed');
     }
   }
@@ -30,6 +35,7 @@ export class DeviceRepository {
       }
       return list[0];
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'getById failed: %{public}s', JSON.stringify(e));
       throw new Error('getById failed');
     }
   }
@@ -52,6 +58,7 @@ export class DeviceRepository {
       }
       return count;
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'count failed: %{public}s', JSON.stringify(e));
       throw new Error('count failed');
     }
   }
@@ -72,6 +79,7 @@ export class DeviceRepository {
     try {
       return await store.insert('devices', values);
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'insert device failed: %{public}s', JSON.stringify(e));
       throw new Error('insert device failed');
     }
   }
@@ -90,6 +98,7 @@ export class DeviceRepository {
     try {
       await store.update(values, pred);
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'update device failed: %{public}s', JSON.stringify(e));
       throw new Error('update device failed');
     }
   }
@@ -99,6 +108,7 @@ export class DeviceRepository {
     try {
       store.beginTransaction();
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'beginTransaction failed: %{public}s', JSON.stringify(e));
       throw new Error('beginTransaction failed');
     }
     try {
@@ -114,6 +124,7 @@ export class DeviceRepository {
         store.rollBack();
       } catch (e2) {
       }
+      hilog.error(DOMAIN, TAG, 'delete device failed: %{public}s', JSON.stringify(e));
       throw new Error('delete device failed');
     }
   }
@@ -138,6 +149,7 @@ export class DeviceRepository {
         list.push(d);
       }
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'mapDevices failed: %{public}s', JSON.stringify(e));
       throw new Error('mapDevices failed');
     } finally {
       try {

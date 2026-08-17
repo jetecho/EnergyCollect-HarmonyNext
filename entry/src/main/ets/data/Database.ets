@@ -42,6 +42,9 @@ const SQL_INDEX_SESSION_DEVICE: string =
 const SQL_INDEX_SESSION_TIME: string =
   'CREATE INDEX IF NOT EXISTS idx_sessions_time ON sessions(start_time)';
 
+const INIT_MAX_ATTEMPTS: number = 3;
+const INIT_RETRY_DELAY_MS: number = 300;
+
 export class Database {
   private static instance: Database | null = null;
   private store: relationalStore.RdbStore | null = null;
@@ -60,17 +63,41 @@ export class Database {
     if (this.store !== null) {
       return;
     }
-    try {
-      this.store = await relationalStore.getRdbStore(context, STORE_CONFIG);
-      await this.store.executeSql(SQL_CREATE_DEVICES);
-      await this.store.executeSql(SQL_CREATE_SESSIONS);
-      await this.store.executeSql(SQL_INDEX_SESSION_DEVICE);
-      await this.store.executeSql(SQL_INDEX_SESSION_TIME);
-      await this.migrate();
-    } catch (error) {
-      this.store = null;
-      hilog.error(DOMAIN, TAG, 'Database init failed: %{public}s', JSON.stringify(error));
+    let lastError: Error = new Error('unknown');
+    for (let attempt: number = 1; attempt <= INIT_MAX_ATTEMPTS; attempt++) {
+      try {
+        const store: relationalStore.RdbStore = await relationalStore.getRdbStore(context, STORE_CONFIG);
+        this.store = store;
+        await store.executeSql(SQL_CREATE_DEVICES);
+        await store.executeSql(SQL_CREATE_SESSIONS);
+        await store.executeSql(SQL_INDEX_SESSION_DEVICE);
+        await store.executeSql(SQL_INDEX_SESSION_TIME);
+        await this.migrate();
+        hilog.info(DOMAIN, TAG, 'Database initialized');
+        return;
+      } catch (error) {
+        this.store = null;
+        lastError = error as Error;
+        hilog.error(DOMAIN, TAG, 'Database init attempt %{public}d/%{public}d failed: %{public}s',
+          attempt, INIT_MAX_ATTEMPTS, JSON.stringify(error));
+        if (attempt < INIT_MAX_ATTEMPTS) {
+          await Database.sleep(INIT_RETRY_DELAY_MS);
+        }
+      }
     }
+    throw new Error('Database init failed after ' + INIT_MAX_ATTEMPTS + ' attempts: ' + JSON.stringify(lastError));
+  }
+
+  isReady(): boolean {
+    return this.store !== null;
+  }
+
+  private static sleep(ms: number): Promise<void> {
+    return new Promise<void>((resolve: () => void) => {
+      setTimeout((): void => {
+        resolve();
+      }, ms);
+    });
   }
 
   private async migrate(): Promise<void> {
@@ -104,6 +131,7 @@ export class Database {
         await store.executeSql(alterSql);
       }
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'ensureColumn %{public}s failed: %{public}s', column, JSON.stringify(e));
       throw new Error('ensureColumn failed');
     }
   }
@@ -119,6 +147,7 @@ export class Database {
     try {
       this.getStore().beginTransaction();
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'beginTransaction failed: %{public}s', JSON.stringify(e));
       throw new Error('beginTransaction failed');
     }
   }
@@ -127,6 +156,7 @@ export class Database {
     try {
       this.getStore().commit();
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'commitTransaction failed: %{public}s', JSON.stringify(e));
       throw new Error('commitTransaction failed');
     }
   }
@@ -135,6 +165,7 @@ export class Database {
     try {
       this.getStore().rollBack();
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'rollbackTransaction failed: %{public}s', JSON.stringify(e));
       throw new Error('rollbackTransaction failed');
     }
   }

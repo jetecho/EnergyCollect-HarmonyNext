@@ -9,6 +9,7 @@ import { SessionType } from '../../model/SessionType';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
 import { PreferencesUtil } from '../../data/PreferencesUtil';
 import { SessionRepository } from '../../data/repository/SessionRepository';
+import { Database } from '../../data/Database';
 import { CalcUtil } from '../../utils/CalcUtil';
 import { DateTimeUtil } from '../../utils/DateTimeUtil';
 import { PromptAction } from '@kit.ArkUI';
@@ -129,6 +130,11 @@ export struct DeviceCard {
                 .fontColor($r('app.color.text_secondary'))
             }
           }
+        } else {
+          Text('--')
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_secondary'))
         }
       }
       .width('100%')
@@ -307,6 +313,7 @@ export struct DeviceCard {
 export struct HomeTab {
   private promptAction: PromptAction = this.getUIContext().getPromptAction();
   @StorageProp('dataVersion') @Watch('reload') dataVersion: number = 0;
+  @StorageProp('dbInitFailed') dbInitFailed: boolean = false;
   @State cards: DeviceCardData[] = [];
   @State showDeviceSheet: boolean = false;
 
@@ -318,6 +325,7 @@ export struct HomeTab {
   @StorageProp('statusBarHeight') statusBarHeight: number = 0;
 
   aboutToAppear(): void {
+    this.notifyRecoveredSessions();
     this.reload();
   }
 
@@ -325,61 +333,103 @@ export struct HomeTab {
     this.loadData();
   }
 
+  private notifyRecoveredSessions(): void {
+    const recovered: number = AppStorage.get<number>('recoveredSessions') ?? 0;
+    if (recovered > 0) {
+      AppStorage.setOrCreate('recoveredSessions', 0);
+      this.showToastSafe(`检测到 ${recovered} 条异常会话，已自动结束`);
+    }
+  }
+
+  private async loadSessionsSafe(deviceId: number): Promise<Session[]> {
+    try {
+      return await this.sessionRepo.listFiltered(deviceId, -1);
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'loadSessionsSafe failed for device %{public}d: %{public}s', deviceId, JSON.stringify(e));
+      return [];
+    }
+  }
+
   private async loadData(): Promise<void> {
-    const devices: Device[] = await this.deviceRepo.listAll(false);
-    const defaultId: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
-    const ordered: Device[] = devices.slice().sort((a: Device, b: Device): number => {
-      if (a.id === defaultId) {
-        return -1;
-      }
-      if (b.id === defaultId) {
-        return 1;
-      }
-      return 0;
-    });
-    const startToday: number = DateTimeUtil.startOfToday();
-    const cards: DeviceCardData[] = [];
-    for (const d of ordered) {
-      const sessions: Session[] = await this.sessionRepo.listFiltered(d.id, -1);
-      let active: Session | null = null;
-      for (const s of sessions) {
-        if (s.isActive()) {
-          active = s;
-          break;
+    try {
+      const devices: Device[] = await this.deviceRepo.listAll(false);
+      const defaultId: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
+      const ordered: Device[] = devices.slice().sort((a: Device, b: Device): number => {
+        if (a.id === defaultId) {
+          return -1;
         }
-      }
-      let currentBattery: number = 100;
-      let currentRange: number = -1;
-      if (isNev(d.icon) && d.rangeRated > 0) {
-        currentRange = d.rangeRated;
-      }
-      if (active !== null) {
-        currentBattery = active.startBattery;
-        if (active.startRange >= 0) {
-          currentRange = active.startRange;
+        if (b.id === defaultId) {
+          return 1;
         }
-      } else {
+        return 0;
+      });
+      const startToday: number = DateTimeUtil.startOfToday();
+      const sessionPromises: Promise<Session[]>[] = ordered.map((d: Device): Promise<Session[]> => {
+        return this.loadSessionsSafe(d.id);
+      });
+      const sessionsList: Session[][] = await Promise.all(sessionPromises);
+      const cards: DeviceCardData[] = [];
+      for (let i = 0; i < ordered.length; i++) {
+        const d: Device = ordered[i];
+        const sessions: Session[] = sessionsList[i];
+        let active: Session | null = null;
         for (const s of sessions) {
-          if (s.isCompleted()) {
-            currentBattery = s.endBattery;
-            if (s.endRange >= 0) {
-              currentRange = s.endRange;
-            }
+          if (s.isActive()) {
+            active = s;
             break;
           }
         }
+        let currentBattery: number = -1;
+        let currentRange: number = -1;
+        if (isNev(d.icon) && d.rangeRated > 0) {
+          currentRange = d.rangeRated;
+        }
+        if (active !== null) {
+          currentBattery = active.startBattery;
+          if (active.startRange >= 0) {
+            currentRange = active.startRange;
+          }
+        } else {
+          for (const s of sessions) {
+            if (s.isCompleted()) {
+              currentBattery = s.endBattery;
+              if (s.endRange >= 0) {
+                currentRange = s.endRange;
+              }
+              break;
+            }
+          }
+        }
+        const card: DeviceCardData = new DeviceCardData();
+        card.device = d;
+        card.activeSession = active;
+        card.currentBattery = currentBattery;
+        card.currentRange = currentRange;
+        card.todayCount = CalcUtil.countToday(sessions, startToday);
+        card.todayDrain = CalcUtil.drainToday(sessions, startToday);
+        card.chargeGain = CalcUtil.chargeToday(sessions, startToday);
+        cards.push(card);
       }
-      const card: DeviceCardData = new DeviceCardData();
-      card.device = d;
-      card.activeSession = active;
-      card.currentBattery = currentBattery;
-      card.currentRange = currentRange;
-      card.todayCount = CalcUtil.countToday(sessions, startToday);
-      card.todayDrain = CalcUtil.drainToday(sessions, startToday);
-      card.chargeGain = CalcUtil.chargeToday(sessions, startToday);
-      cards.push(card);
+      this.cards = cards;
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'HomeTab loadData failed: %{public}s', JSON.stringify(e));
     }
-    this.cards = cards;
+  }
+
+  private async retryDbInit(): Promise<void> {
+    const ctx: Context | undefined = this.getUIContext().getHostContext();
+    if (ctx === undefined) {
+      this.showToastSafe($r('app.string.toast_action_failed'));
+      return;
+    }
+    try {
+      await Database.getInstance().init(ctx);
+      AppStorage.setOrCreate('dbInitFailed', false);
+      this.bump();
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'retryDbInit failed: %{public}s', JSON.stringify(e));
+      this.showToastSafe($r('app.string.toast_action_failed'));
+    }
   }
 
   private bump(): void {
@@ -444,27 +494,42 @@ export struct HomeTab {
   }
 
   private async confirmStart(deviceId: number, type: SessionType, battery: number, note: string, range: number): Promise<void> {
-    if (type === SessionType.USAGE) {
-      await this.sessionRepo.startUsageSession(deviceId, battery, note, range);
-    } else {
-      await this.sessionRepo.startSession(deviceId, type, battery, note, range);
+    try {
+      if (type === SessionType.USAGE) {
+        await this.sessionRepo.startUsageSession(deviceId, battery, note, range);
+      } else {
+        await this.sessionRepo.startSession(deviceId, type, battery, note, range);
+      }
+      this.bump();
+      this.loadData();
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'confirmStart failed: %{public}s', JSON.stringify(e));
+      this.showToastSafe($r('app.string.toast_action_failed'));
     }
-    this.bump();
-    this.loadData();
   }
 
   private async confirmEnd(id: number, battery: number, range: number): Promise<void> {
-    await this.sessionRepo.endSession(id, battery, range);
-    this.bump();
-    this.loadData();
+    try {
+      await this.sessionRepo.endSession(id, battery, range);
+      this.bump();
+      this.loadData();
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'confirmEnd failed: %{public}s', JSON.stringify(e));
+      this.showToastSafe($r('app.string.toast_action_failed'));
+    }
   }
 
   private async saveDevice(name: string, icon: string, capacity: number, rangeRated: number, statMode: string): Promise<void> {
-    const id: number = await this.deviceRepo.insert(name, icon, capacity, rangeRated, statMode);
-    await this.ensureDefaultDevice(id);
-    this.showDeviceSheet = false;
-    this.bump();
-    this.loadData();
+    try {
+      const id: number = await this.deviceRepo.insert(name, icon, capacity, rangeRated, statMode);
+      await this.ensureDefaultDevice(id);
+      this.showDeviceSheet = false;
+      this.bump();
+      this.loadData();
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'saveDevice failed: %{public}s', JSON.stringify(e));
+      this.showToastSafe($r('app.string.toast_action_failed'));
+    }
   }
 
   private async ensureDefaultDevice(newId: number): Promise<void> {
@@ -523,26 +588,49 @@ export struct HomeTab {
 
   @Builder
   EmptyBody() {
-    Column({ space: 4 }) {
-      EmptyState({
-        icon: $r('app.media.ic_device_other'),
-        title: $r('app.string.home_no_device_title'),
-        desc: $r('app.string.home_no_device_desc')
-      })
-      Button($r('app.string.home_no_device_btn'))
-        .type(ButtonType.Normal)
-        .borderRadius(14)
-        .height(44)
-        .padding({ left: 28, right: 28 })
-        .backgroundColor($r('app.color.brand'))
-        .fontColor($r('app.color.text_on_brand'))
-        .margin({ top: 8 })
-        .onClick(() => {
-          this.showDeviceSheet = true;
+    if (this.dbInitFailed) {
+      Column({ space: 4 }) {
+        EmptyState({
+          icon: $r('app.media.ic_device_other'),
+          title: $r('app.string.db_error_title'),
+          desc: $r('app.string.db_error_desc')
         })
+        Button($r('app.string.db_error_retry'))
+          .type(ButtonType.Normal)
+          .borderRadius(14)
+          .height(44)
+          .padding({ left: 28, right: 28 })
+          .backgroundColor($r('app.color.brand'))
+          .fontColor($r('app.color.text_on_brand'))
+          .margin({ top: 8 })
+          .onClick(() => {
+            this.retryDbInit();
+          })
+      }
+      .width('100%')
+      .padding({ top: 40 })
+    } else {
+      Column({ space: 4 }) {
+        EmptyState({
+          icon: $r('app.media.ic_device_other'),
+          title: $r('app.string.home_no_device_title'),
+          desc: $r('app.string.home_no_device_desc')
+        })
+        Button($r('app.string.home_no_device_btn'))
+          .type(ButtonType.Normal)
+          .borderRadius(14)
+          .height(44)
+          .padding({ left: 28, right: 28 })
+          .backgroundColor($r('app.color.brand'))
+          .fontColor($r('app.color.text_on_brand'))
+          .margin({ top: 8 })
+          .onClick(() => {
+            this.showDeviceSheet = true;
+          })
+      }
+      .width('100%')
+      .padding({ top: 40 })
     }
-    .width('100%')
-    .padding({ top: 40 })
   }
 
   @Builder

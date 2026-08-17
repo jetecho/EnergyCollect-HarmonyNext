@@ -3,6 +3,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { Database } from '../data/Database';
 import { PreferencesUtil } from '../data/PreferencesUtil';
+import { SessionRepository, ORPHAN_SESSION_THRESHOLD_MS } from '../data/repository/SessionRepository';
 import { Immersive } from '../utils/Immersive';
 
 const DOMAIN: number = 0x0001;
@@ -26,8 +27,23 @@ export default class EntryAbility extends UIAbility {
     try {
       await Database.getInstance().init(this.context);
       await PreferencesUtil.init(this.context);
+      AppStorage.setOrCreate('dbInitFailed', false);
     } catch (err) {
       hilog.error(DOMAIN, TAG, 'init failed: %{public}s', JSON.stringify(err));
+      AppStorage.setOrCreate('dbInitFailed', true);
+    }
+    AppStorage.setOrCreate('recoveredSessions', 0);
+
+    if (Database.getInstance().isReady()) {
+      try {
+        const recovered: number = await new SessionRepository().recoverOrphanActiveSessions(ORPHAN_SESSION_THRESHOLD_MS);
+        if (recovered > 0) {
+          AppStorage.setOrCreate('recoveredSessions', recovered);
+          hilog.info(DOMAIN, TAG, 'auto-closed %{public}d orphan active session(s)', recovered);
+        }
+      } catch (err) {
+        hilog.error(DOMAIN, TAG, 'orphan session recovery failed: %{public}s', JSON.stringify(err));
+      }
     }
 
     const colorMode: number = await PreferencesUtil.getColorMode();

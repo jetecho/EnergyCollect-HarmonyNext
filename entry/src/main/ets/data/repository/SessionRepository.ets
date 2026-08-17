@@ -2,6 +2,12 @@ import { relationalStore } from '@kit.ArkData';
 import { Database } from '../Database';
 import { Session } from '../../model/Session';
 import { SessionType } from '../../model/SessionType';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+
+const DOMAIN: number = 0x0001;
+const TAG: string = 'EnergyCollect';
+
+export const ORPHAN_SESSION_THRESHOLD_MS: number = 12 * 60 * 60 * 1000;
 
 export class SessionRepository {
   private db: Database = Database.getInstance();
@@ -20,6 +26,7 @@ export class SessionRepository {
       const resultSet: relationalStore.ResultSet = await store.query(pred);
       return this.mapSessions(resultSet);
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'listFiltered failed: %{public}s', JSON.stringify(e));
       throw new Error('listFiltered failed');
     }
   }
@@ -39,6 +46,7 @@ export class SessionRepository {
     try {
       return await store.insert('sessions', values);
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'startSession failed: %{public}s', JSON.stringify(e));
       throw new Error('startSession failed');
     }
   }
@@ -48,6 +56,7 @@ export class SessionRepository {
     try {
       store.beginTransaction();
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'beginTransaction failed: %{public}s', JSON.stringify(e));
       throw new Error('beginTransaction failed');
     }
     try {
@@ -74,6 +83,7 @@ export class SessionRepository {
         store.rollBack();
       } catch (e2) {
       }
+      hilog.error(DOMAIN, TAG, 'startUsageSession failed: %{public}s', JSON.stringify(e));
       throw new Error('startUsageSession failed');
     }
   }
@@ -95,6 +105,7 @@ export class SessionRepository {
     try {
       return await store.insert('sessions', values);
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'insertCompleted failed: %{public}s', JSON.stringify(e));
       throw new Error('insertCompleted failed');
     }
   }
@@ -116,6 +127,7 @@ export class SessionRepository {
     try {
       return await store.insert('sessions', values);
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'importSession failed: %{public}s', JSON.stringify(e));
       throw new Error('importSession failed');
     }
   }
@@ -133,6 +145,7 @@ export class SessionRepository {
     try {
       await store.update(values, pred);
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'endSession failed: %{public}s', JSON.stringify(e));
       throw new Error('endSession failed');
     }
   }
@@ -147,6 +160,7 @@ export class SessionRepository {
     try {
       await store.update(values, pred);
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'updateNote failed: %{public}s', JSON.stringify(e));
       throw new Error('updateNote failed');
     }
   }
@@ -158,6 +172,7 @@ export class SessionRepository {
     try {
       await store.delete(pred);
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'delete session failed: %{public}s', JSON.stringify(e));
       throw new Error('delete session failed');
     }
   }
@@ -168,7 +183,45 @@ export class SessionRepository {
       await store.executeSql('DELETE FROM sessions');
       await store.executeSql('DELETE FROM devices');
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'deleteAll failed: %{public}s', JSON.stringify(e));
       throw new Error('deleteAll failed');
+    }
+  }
+
+  /**
+   * 兜底恢复异常中断的"进行中"会话（如进程被杀、崩溃）：
+   * 超过 thresholdMs 仍未结束的会话，按"保留电量、时长清零"自动结束，
+   * 使电量链条保持连续，避免会话永久显示进行中。
+   * 返回自动结束的会话数量。
+   */
+  async recoverOrphanActiveSessions(thresholdMs: number): Promise<number> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    const cutoff: number = Date.now() - thresholdMs;
+    try {
+      let count: number = 0;
+      const countSet: relationalStore.ResultSet = await store.querySql(
+        'SELECT COUNT(*) AS c FROM sessions WHERE (end_time IS NULL OR end_time = 0) AND start_time < ?',
+        [cutoff]);
+      try {
+        if (countSet.goToFirstRow()) {
+          count = countSet.getLong(countSet.getColumnIndex('c'));
+        }
+      } finally {
+        try {
+          countSet.close();
+        } catch (e2) {
+        }
+      }
+      if (count > 0) {
+        await store.executeSql(
+          'UPDATE sessions SET end_time = start_time, end_battery = start_battery, end_range = COALESCE(start_range, -1) ' +
+          'WHERE (end_time IS NULL OR end_time = 0) AND start_time < ?',
+          [cutoff]);
+      }
+      return count;
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'recoverOrphanActiveSessions failed: %{public}s', JSON.stringify(e));
+      throw new Error('recoverOrphanActiveSessions failed');
     }
   }
 
@@ -200,6 +253,7 @@ export class SessionRepository {
         list.push(s);
       }
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'mapSessions failed: %{public}s', JSON.stringify(e));
       throw new Error('mapSessions failed');
     } finally {
       try {

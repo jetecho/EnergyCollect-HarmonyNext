@@ -11,6 +11,10 @@ import { ChartPoint } from '../../model/ChartPoint';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
 import { SessionRepository } from '../../data/repository/SessionRepository';
 import { CalcUtil } from '../../utils/CalcUtil';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+
+const DOMAIN: number = 0x0001;
+const TAG: string = 'EnergyCollect';
 
 @Component
 export struct HistoryTab {
@@ -40,42 +44,46 @@ export struct HistoryTab {
   }
 
   private async loadData(): Promise<void> {
-    const devices: Device[] = await this.deviceRepo.listAll(false);
-    this.devices = devices;
-    if (devices.length === 0) {
-      this.sessions = [];
-      this.chartPoints = [];
-      this.totalSessions = 0;
-      this.totalDrain = 0;
-      this.totalCharge = 0;
-      return;
-    }
-    const currentExists: boolean = this.filterDeviceId > 0 &&
-      devices.some((d: Device): boolean => d.id === this.filterDeviceId);
-    if (!currentExists) {
-      const defaultId: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
-      const hasDefault: boolean = defaultId > 0 && devices.some((d: Device): boolean => d.id === defaultId);
-      if (hasDefault) {
-        this.filterDeviceId = defaultId;
-      } else {
-        this.filterDeviceId = devices[0].id;
+    try {
+      const devices: Device[] = await this.deviceRepo.listAll(false);
+      this.devices = devices;
+      if (devices.length === 0) {
+        this.sessions = [];
+        this.chartPoints = [];
+        this.totalSessions = 0;
+        this.totalDrain = 0;
+        this.totalCharge = 0;
+        return;
       }
-    }
-    const sessions: Session[] = await this.sessionRepo.listFiltered(this.filterDeviceId, this.filterType);
-    this.sessions = sessions;
-    this.chartPoints = CalcUtil.toChartPoints(sessions);
-    this.totalSessions = sessions.length;
-    const dev: Device | null = this.findDevice(this.filterDeviceId);
-    const nev: boolean = dev !== null && isNev(dev.icon);
-    const cap: number = dev !== null ? dev.batteryCapacity : 0;
-    if (nev && cap > 0) {
-      this.totalDrain = CalcUtil.totalDrain(sessions) * cap / 100;
-      this.totalCharge = CalcUtil.totalCharge(sessions) * cap / 100;
-      this.statUnit = 'kWh';
-    } else {
-      this.totalDrain = CalcUtil.totalDrain(sessions);
-      this.totalCharge = CalcUtil.totalCharge(sessions);
-      this.statUnit = '%';
+      const currentExists: boolean = this.filterDeviceId > 0 &&
+        devices.some((d: Device): boolean => d.id === this.filterDeviceId);
+      if (!currentExists) {
+        const defaultId: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
+        const hasDefault: boolean = defaultId > 0 && devices.some((d: Device): boolean => d.id === defaultId);
+        if (hasDefault) {
+          this.filterDeviceId = defaultId;
+        } else {
+          this.filterDeviceId = devices[0].id;
+        }
+      }
+      const sessions: Session[] = await this.sessionRepo.listFiltered(this.filterDeviceId, this.filterType);
+      this.sessions = sessions;
+      this.chartPoints = CalcUtil.toChartPoints(sessions);
+      this.totalSessions = sessions.length;
+      const dev: Device | null = this.findDevice(this.filterDeviceId);
+      const nev: boolean = dev !== null && isNev(dev.icon);
+      const cap: number = dev !== null ? dev.batteryCapacity : 0;
+      if (nev && cap > 0) {
+        this.totalDrain = CalcUtil.totalDrain(sessions) * cap / 100;
+        this.totalCharge = CalcUtil.totalCharge(sessions) * cap / 100;
+        this.statUnit = 'kWh';
+      } else {
+        this.totalDrain = CalcUtil.totalDrain(sessions);
+        this.totalCharge = CalcUtil.totalCharge(sessions);
+        this.statUnit = '%';
+      }
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'HistoryTab loadData failed: %{public}s', JSON.stringify(e));
     }
   }
 
