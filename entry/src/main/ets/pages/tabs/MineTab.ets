@@ -11,7 +11,7 @@ import { Immersive } from '../../utils/Immersive';
 import { PromptAction, promptAction } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { ConfigurationConstant } from '@kit.AbilityKit';
+import { ConfigurationConstant, bundleManager } from '@kit.AbilityKit';
 import { picker, fileIo } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 
@@ -54,6 +54,7 @@ export struct MineTab {
   @State sheetRange: number = 0;
   @State sheetStatMode: string = 'CLTC';
   @State sheetIsDefault: boolean = false;
+  @State aboutVersion: string = '';
   @StorageProp('defaultDeviceId') defaultDeviceId: number = -1;
 
   private deviceRepo: DeviceRepository = new DeviceRepository();
@@ -62,7 +63,18 @@ export struct MineTab {
   @StorageProp('statusBarHeight') statusBarHeight: number = 0;
 
   aboutToAppear(): void {
+    this.loadVersion();
     this.reload();
+  }
+
+  private async loadVersion(): Promise<void> {
+    try {
+      const info: bundleManager.BundleInfo = await bundleManager.getBundleInfoForSelf(
+        bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
+      this.aboutVersion = info.versionName;
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'loadVersion failed: %{public}s', JSON.stringify(e));
+    }
   }
 
   reload(): void {
@@ -749,7 +761,7 @@ export struct MineTab {
           .fontSize(15)
           .fontColor($r('app.color.text_primary'))
         Blank()
-        Text(`v1.0.0`)
+        Text(this.aboutVersion.length > 0 ? `v${this.aboutVersion}` : '--')
           .fontSize(13)
           .fontColor($r('app.color.text_tertiary'))
       }

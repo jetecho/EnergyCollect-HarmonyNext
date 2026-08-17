@@ -11,6 +11,7 @@ import { ChartPoint } from '../../model/ChartPoint';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
 import { SessionRepository } from '../../data/repository/SessionRepository';
 import { CalcUtil } from '../../utils/CalcUtil';
+import { DateTimeUtil } from '../../utils/DateTimeUtil';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
 const DOMAIN: number = 0x0001;
@@ -24,6 +25,7 @@ export struct HistoryTab {
   @State chartPoints: ChartPoint[] = [];
   @State filterDeviceId: number = 0;
   @State filterType: number = -1;
+  @State filterPeriod: number = 0;
   @State totalSessions: number = 0;
   @State totalDrain: number = 0;
   @State totalCharge: number = 0;
@@ -66,7 +68,16 @@ export struct HistoryTab {
           this.filterDeviceId = devices[0].id;
         }
       }
-      const sessions: Session[] = await this.sessionRepo.listFiltered(this.filterDeviceId, this.filterType);
+      const sessionsAll: Session[] = await this.sessionRepo.listFiltered(this.filterDeviceId, this.filterType);
+      let cutoff: number = 0;
+      if (this.filterPeriod === 1) {
+        cutoff = DateTimeUtil.startOfWeek();
+      } else if (this.filterPeriod === 2) {
+        cutoff = DateTimeUtil.startOfMonth();
+      }
+      const sessions: Session[] = cutoff > 0
+        ? sessionsAll.filter((s: Session): boolean => s.startTime >= cutoff)
+        : sessionsAll;
       this.sessions = sessions;
       this.chartPoints = CalcUtil.toChartPoints(sessions);
       this.totalSessions = sessions.length;
@@ -171,6 +182,13 @@ export struct HistoryTab {
       .width('100%')
 
       Row({ space: 8 }) {
+        this.PeriodChip(0, $r('app.string.history_filter_all_types'))
+        this.PeriodChip(1, $r('app.string.history_filter_week'))
+        this.PeriodChip(2, $r('app.string.history_filter_month'))
+      }
+      .width('100%')
+
+      Row({ space: 8 }) {
         this.TypeChip(-1, $r('app.string.history_filter_all_types'))
         this.TypeChip(0, $r('app.string.history_filter_usage'))
         this.TypeChip(1, $r('app.string.history_filter_idle'))
@@ -211,18 +229,62 @@ export struct HistoryTab {
   }
 
   @Builder
+  PeriodChip(period: number, label: ResourceStr) {
+    Text(label)
+      .fontSize(13)
+      .fontColor(this.filterPeriod === period ? $r('app.color.text_on_brand') : $r('app.color.text_secondary'))
+      .backgroundColor(this.filterPeriod === period ? $r('app.color.brand') : $r('app.color.bg_card'))
+      .borderRadius(16)
+      .padding({ left: 14, right: 14, top: 7, bottom: 7 })
+      .onClick(() => {
+        this.filterPeriod = period;
+        this.reload();
+      })
+  }
+
+  private periodSessionsLabel(): ResourceStr {
+    if (this.filterPeriod === 1) {
+      return $r('app.string.history_week_sessions');
+    }
+    if (this.filterPeriod === 2) {
+      return $r('app.string.history_month_sessions');
+    }
+    return $r('app.string.history_total_sessions');
+  }
+
+  private periodDrainLabel(): ResourceStr {
+    if (this.filterPeriod === 1) {
+      return $r('app.string.history_week_drain');
+    }
+    if (this.filterPeriod === 2) {
+      return $r('app.string.history_month_drain');
+    }
+    return $r('app.string.history_total_drain');
+  }
+
+  private periodChargeLabel(): ResourceStr {
+    if (this.filterPeriod === 1) {
+      return $r('app.string.history_week_charge');
+    }
+    if (this.filterPeriod === 2) {
+      return $r('app.string.history_month_charge');
+    }
+    return $r('app.string.history_total_charge');
+  }
+
+  @Builder
   StatsRow() {
     Row({ space: 12 }) {
       Column() {
         StatCard({
-          label: $r('app.string.history_total_sessions'),
+          label: this.periodSessionsLabel(),
           value: `${this.totalSessions}`
         })
       }
       .layoutWeight(1)
       Column() {
         StatCard({
-          label: $r('app.string.history_total_charge'),
+          label: this.periodChargeLabel(),
           value: this.statUnit === 'kWh' ? this.totalCharge.toFixed(1) : `${this.totalCharge}`,
           unit: this.statUnit,
           valueColor: $r('app.color.charge_color')
@@ -231,7 +293,7 @@ export struct HistoryTab {
       .layoutWeight(1)
       Column() {
         StatCard({
-          label: $r('app.string.history_total_drain'),
+          label: this.periodDrainLabel(),
           value: this.statUnit === 'kWh' ? this.totalDrain.toFixed(1) : `${this.totalDrain}`,
           unit: this.statUnit,
           valueColor: $r('app.color.danger')

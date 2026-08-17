@@ -81,4 +81,32 @@ export class DateTimeUtil {
     d.setHours(0, 0, 0, 0);
     return d.getTime();
   }
+
+  static startOfWeek(): number {
+    const d: Date = new Date();
+    const day: number = d.getDay();
+    const diff: number = day === 0 ? 6 : day - 1;
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - diff);
+    return d.getTime();
+  }
+
+  static startOfMonth(): number {
+    const d: Date = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+
+  static formatAxisTime(timestamp: number): string {
+    if (timestamp <= 0) {
+      return '';
+    }
+    const d: Date = new Date(timestamp);
+    const now: Date = new Date();
+    if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()) {
+      return DateTimeUtil.pad(d.getHours()) + ':' + DateTimeUtil.pad(d.getMinutes());
+    }
+    return (d.getMonth() + 1) + '/' + d.getDate();
+  }
 }

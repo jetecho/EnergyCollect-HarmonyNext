@@ -125,6 +125,38 @@
       "value": "充电"
     },
     {
+      "name": "history_filter_week",
+      "value": "本周"
+    },
+    {
+      "name": "history_filter_month",
+      "value": "本月"
+    },
+    {
+      "name": "history_week_sessions",
+      "value": "本周记录"
+    },
+    {
+      "name": "history_week_drain",
+      "value": "本周耗能"
+    },
+    {
+      "name": "history_week_charge",
+      "value": "本周补能"
+    },
+    {
+      "name": "history_month_sessions",
+      "value": "本月记录"
+    },
+    {
+      "name": "history_month_drain",
+      "value": "本月耗能"
+    },
+    {
+      "name": "history_month_charge",
+      "value": "本月补能"
+    },
+    {
       "name": "history_total_sessions",
       "value": "总记录"
     },

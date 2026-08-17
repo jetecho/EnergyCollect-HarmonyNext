@@ -1,10 +1,18 @@
-import { LineChart as MpLineChart, LineChartModel, LineDataSet, LineData, EntryOhos, JArrayList, Mode, XAxisPosition, ILineDataSet } from '@ohos/mpchart';
+import { LineChart as MpLineChart, LineChartModel, LineDataSet, LineData, EntryOhos, JArrayList, Mode, XAxisPosition, ILineDataSet, AxisBase, IAxisValueFormatter } from '@ohos/mpchart';
 import { ChartPoint } from '../model/ChartPoint';
+import { DateTimeUtil } from '../utils/DateTimeUtil';
+
+class ChartTimeFormatter implements IAxisValueFormatter {
+  getFormattedValue(value: number, axis: AxisBase): string {
+    return DateTimeUtil.formatAxisTime(value);
+  }
+}
 
 @Component
 export struct TrendChart {
   @Prop @Watch('refresh') points: ChartPoint[] = [];
   private model: LineChartModel = new LineChartModel();
+  private timeFormatter: ChartTimeFormatter = new ChartTimeFormatter();
 
   aboutToAppear(): void {
     this.setupModel();
@@ -17,6 +25,9 @@ export struct TrendChart {
     this.model.getLegend()?.setEnabled(false);
     this.model.getXAxis()?.setPosition(XAxisPosition.BOTTOM);
     this.model.getXAxis()?.setDrawGridLines(false);
+    this.model.getXAxis()?.setValueFormatter(this.timeFormatter);
+    this.model.getXAxis()?.setLabelCount(4, true);
+    this.model.getXAxis()?.setGranularity(1);
     this.model.getAxisRight()?.setEnabled(false);
     this.model.getAxisLeft()?.setAxisMinimum(0);
     this.model.getAxisLeft()?.setAxisMaximum(100);
@@ -30,7 +41,7 @@ export struct TrendChart {
   refresh(): void {
     const values: JArrayList<EntryOhos> = new JArrayList<EntryOhos>();
     for (let i = 0; i < this.points.length; i++) {
-      values.add(new EntryOhos(i, this.points[i].value));
+      values.add(new EntryOhos(this.points[i].time, this.points[i].value));
     }
     const set: LineDataSet = new LineDataSet(values, '');
     set.setColorByColor(0xFF0A59F7);
