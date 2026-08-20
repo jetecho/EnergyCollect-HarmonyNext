@@ -30,6 +30,7 @@ export struct HistoryTab {
   @State totalDrain: number = 0;
   @State totalCharge: number = 0;
   @State statUnit: string = '%';
+  @State isRefreshing: boolean = false;
 
   private deviceRepo: DeviceRepository = new DeviceRepository();
   private sessionRepo: SessionRepository = new SessionRepository();
@@ -122,8 +123,40 @@ export struct HistoryTab {
   }
 
   private async saveNote(id: number, note: string): Promise<void> {
-    await this.sessionRepo.updateNote(id, note);
-    this.bump();
+    try {
+      await this.sessionRepo.updateNote(id, note);
+      // 直接更新本地列表（新对象触发 ForEach 重新 diff），不依赖 dataVersion 全链路刷新
+      const updated: Session[] = [];
+      for (const s of this.sessions) {
+        if (s.id === id) {
+          const copy: Session = this.cloneSession(s);
+          copy.note = note;
+          updated.push(copy);
+        } else {
+          updated.push(s);
+        }
+      }
+      this.sessions = updated;
+      this.bump();
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'saveNote failed: %{public}s', JSON.stringify(e));
+    }
+  }
+
+  private cloneSession(s: Session): Session {
+    const copy: Session = new Session();
+    copy.id = s.id;
+    copy.deviceId = s.deviceId;
+    copy.type = s.type;
+    copy.startBattery = s.startBattery;
+    copy.endBattery = s.endBattery;
+    copy.startTime = s.startTime;
+    copy.endTime = s.endTime;
+    copy.note = s.note;
+    copy.createdAt = s.createdAt;
+    copy.startRange = s.startRange;
+    copy.endRange = s.endRange;
+    return copy;
   }
 
   private bump(): void {
@@ -133,29 +166,38 @@ export struct HistoryTab {
 
   build() {
     HdsNavigation() {
-      Scroll() {
-        Column({ space: 14 }) {
-          if (this.devices.length === 0) {
-            this.NoDeviceBody()
-          } else {
-            this.FilterRow()
-            this.StatsRow()
-            if (this.sessions.length === 0) {
-              this.NoRecordBody()
+      Refresh({ refreshing: $$this.isRefreshing }) {
+        Scroll() {
+          Column({ space: 14 }) {
+            if (this.devices.length === 0) {
+              this.NoDeviceBody()
             } else {
-              this.ChartCard()
-              this.BarChartCard()
-              this.ListSection()
+              this.FilterRow()
+              this.StatsRow()
+              if (this.sessions.length === 0) {
+                this.NoRecordBody()
+              } else {
+                this.ChartCard()
+                this.BarChartCard()
+                this.ListSection()
+              }
             }
           }
+          .width('100%')
+          .padding({ left: 16, right: 16, top: 16, bottom: 96 + this.navBarHeight })
         }
         .width('100%')
-        .padding({ left: 16, right: 16, top: 16, bottom: 96 + this.navBarHeight })
+        .height('100%')
+        .scrollBar(BarState.Off)
+        .align(Alignment.Top)
       }
       .width('100%')
       .height('100%')
-      .scrollBar(BarState.Off)
-      .align(Alignment.Top)
+      .onRefreshing(() => {
+        this.loadData().then(() => {
+          this.isRefreshing = false;
+        });
+      })
     }
     .hideTitleBar(true)
     .padding({ top: this.statusBarHeight })
@@ -350,7 +392,7 @@ export struct HistoryTab {
             this.openNoteDialog(session);
           }
         })
-      }, (s: Session) => `${s.id}_${s.endTime}`)
+      }, (s: Session) => `${s.id}_${s.endTime}_${s.note}`)
     }
     .width('100%')
   }
