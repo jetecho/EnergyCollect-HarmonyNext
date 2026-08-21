@@ -205,6 +205,14 @@
       "value": "暂无充电记录"
     },
     {
+      "name": "chart_detail_time",
+      "value": "时间"
+    },
+    {
+      "name": "chart_detail_note",
+      "value": "备注"
+    },
+    {
       "name": "session_type_usage",
       "value": "使用会话"
     },

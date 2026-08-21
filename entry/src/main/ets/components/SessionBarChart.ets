@@ -1,8 +1,9 @@
-import { BarChart as MpBarChart, BarChartModel, BarDataSet, BarData, BarEntry, JArrayList, XAxisPosition, IBarDataSet, AxisBase, IAxisValueFormatter } from '@ohos/mpchart';
+import { BarChart as MpBarChart, BarChartModel, BarDataSet, BarData, BarEntry, JArrayList, XAxisPosition, IBarDataSet, AxisBase, IAxisValueFormatter, Highlight } from '@ohos/mpchart';
 import { Session } from '../model/Session';
 import { SessionType } from '../model/SessionType';
 import { CalcUtil } from '../utils/CalcUtil';
 import { DateTimeUtil } from '../utils/DateTimeUtil';
+import { ChartTooltipData } from '../model/ChartTooltip';
 
 const COLOR_CHARGE: number = 0xFF1FA978;
 const COLOR_USAGE: number = 0xFFE84026;
@@ -28,8 +29,16 @@ export struct SessionBarChart {
   @Prop @Watch('refresh') sessions: Session[] = [];
   /** 0=耗电图（使用红/闲置黄），1=充电图（绿色） */
   @Prop mode: number = 0;
+  /** 来源标识，用于 HistoryTab 区分 tooltip 归属 */
+  @Prop tag: string = '';
+  /** 命中柱子时上抛悬浮信息 */
+  onTap: (data: ChartTooltipData) => void = (): void => {};
   private model: BarChartModel = new BarChartModel();
   private timeFormatter: ChartTimeFormatter = new ChartTimeFormatter();
+  /** 当前绘制的会话（过滤+排序后，与柱子索引一一对应） */
+  private displaySessions: Session[] = [];
+  private downX: number = -1;
+  private downY: number = -1;
 
   aboutToAppear(): void {
     this.setupModel();
@@ -71,6 +80,8 @@ export struct SessionBarChart {
       list.push(s);
     }
     list.sort((a: Session, b: Session): number => a.startTime - b.startTime);
+    // 记录当前绘制的会话，供点击选中时回查
+    this.displaySessions = list;
     // 均等 x 轴：柱子按序号等间距排列，时间仅用于底部标签
     const values: JArrayList<BarEntry> = new JArrayList<BarEntry>();
     const colors: number[] = [];
@@ -101,12 +112,70 @@ export struct SessionBarChart {
     this.model.setData(data);
   }
 
+  /** 按坐标判断是否命中柱子，命中则上抛悬浮信息 */
+  private handleChartTapAt(x: number, y: number): void {
+    const h: Highlight | null = this.model.getHighlightByTouchPoint(x, y);
+    if (h === null) {
+      return;
+    }
+    const idx: number = Math.round(h.getX());
+    if (idx < 0 || idx >= this.displaySessions.length) {
+      return;
+    }
+    const vph = this.model.getViewPortHandler();
+    const n: number = this.displaySessions.length;
+    const slotWidth: number = (vph.contentRight() - vph.contentLeft()) / n;
+    const halfBar: number = 0.3 * slotWidth;
+    // x 不在柱子宽度内（柱间空隙）或 y 在柱顶上方/底部下方 → 空白，不处理
+    if (Math.abs(x - h.getXPx()) > halfBar) {
+      return;
+    }
+    if (y < h.getYPx() || y > vph.contentBottom()) {
+      return;
+    }
+    const s: Session = this.displaySessions[idx];
+    let valueText: string;
+    let valueColor: ResourceColor;
+    if (this.mode === 1) {
+      valueText = `+${s.endBattery - s.startBattery}%`;
+      valueColor = $r('app.color.charge_color');
+    } else {
+      valueText = `-${CalcUtil.consumption(s)}%`;
+      valueColor = s.type === SessionType.IDLE ? $r('app.color.idle_color') : $r('app.color.usage_color');
+    }
+    const timeText: string = s.isCompleted()
+      ? `${DateTimeUtil.formatDateTime(s.startTime)} ~ ${DateTimeUtil.formatDateTime(s.endTime)}`
+      : `${DateTimeUtil.formatDateTime(s.startTime)} ~ 进行中`;
+    this.onTap({
+      tag: this.tag,
+      valueText: valueText,
+      valueColor: valueColor,
+      timeText: timeText,
+      note: s.note,
+      x: h.getXPx(),
+      y: h.getYPx()
+    });
+  }
+
   build() {
-    Column() {
+    Stack({ alignContent: Alignment.TopStart }) {
       MpBarChart({ model: this.model })
         .width('100%')
         .height(180)
     }
     .width('100%')
+    .height(180)
+    .onTouch((event: TouchEvent) => {
+      if (event.type === TouchType.Down && event.touches && event.touches.length > 0) {
+        this.downX = event.touches[0].x;
+        this.downY = event.touches[0].y;
+      } else if (event.type === TouchType.Up) {
+        if (this.downX >= 0) {
+          this.handleChartTapAt(this.downX, this.downY);
+          this.downX = -1;
+          this.downY = -1;
+        }
+      }
+    })
   }
 }

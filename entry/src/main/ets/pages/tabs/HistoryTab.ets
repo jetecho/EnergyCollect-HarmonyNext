@@ -9,6 +9,7 @@ import { Device, isNev } from '../../model/Device';
 import { Session } from '../../model/Session';
 import { SessionType } from '../../model/SessionType';
 import { ChartPoint } from '../../model/ChartPoint';
+import { ChartTooltipData } from '../../model/ChartTooltip';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
 import { SessionRepository } from '../../data/repository/SessionRepository';
 import { CalcUtil } from '../../utils/CalcUtil';
@@ -39,6 +40,7 @@ export struct HistoryTab {
   @State totalCharge: number = 0;
   @State statUnit: string = '%';
   @State isRefreshing: boolean = false;
+  @State chartTooltipData: ChartTooltipData | null = null;
   private loadSeq: number = 0;
 
   private deviceRepo: DeviceRepository = new DeviceRepository();
@@ -214,6 +216,16 @@ export struct HistoryTab {
     return copy;
   }
 
+  /** 点击页面任意处或滚动历史页时，隐藏图表悬浮信息 */
+  private dismissChartTooltips(): void {
+    this.chartTooltipData = null;
+  }
+
+  /** 图表命中数据点后显示悬浮信息 */
+  private onChartTap(data: ChartTooltipData): void {
+    this.chartTooltipData = data;
+  }
+
   build() {
     HdsNavigation() {
       Refresh({ refreshing: $$this.isRefreshing }) {
@@ -241,6 +253,12 @@ export struct HistoryTab {
         .height('100%')
         .scrollBar(BarState.Off)
         .align(Alignment.Top)
+        .onTouch((event: TouchEvent) => {
+          // 触摸页面任意处（点击或滚动）即隐藏图表悬浮信息
+          if (event.type === TouchType.Down || event.type === TouchType.Move) {
+            this.dismissChartTooltips();
+          }
+        })
       }
       .width('100%')
       .height('100%')
@@ -408,8 +426,22 @@ export struct HistoryTab {
       if (this.chartSessions.length === 0) {
         this.ChartEmpty($r('app.string.history_chart_empty'))
       } else {
-        TrendChart({ points: this.chartPoints })
-          .width('100%')
+        Stack({ alignContent: Alignment.TopStart }) {
+          TrendChart({
+            points: this.chartPoints,
+            sessions: this.chartSessions,
+            tag: 'trend',
+            onTap: (d: ChartTooltipData): void => {
+              this.onChartTap(d);
+            }
+          })
+            .width('100%')
+          if (this.chartTooltipData !== null && this.chartTooltipData.tag === 'trend') {
+            this.ChartTooltip(this.chartTooltipData)
+          }
+        }
+        .width('100%')
+        .height(180)
       }
     }
     .width('100%')
@@ -429,8 +461,22 @@ export struct HistoryTab {
       if (this.chartSessions.length === 0) {
         this.ChartEmpty($r('app.string.history_chart_empty'))
       } else {
-        SessionBarChart({ sessions: this.chartSessions, mode: 0 })
-          .width('100%')
+        Stack({ alignContent: Alignment.TopStart }) {
+          SessionBarChart({
+            sessions: this.chartSessions,
+            mode: 0,
+            tag: 'drain',
+            onTap: (d: ChartTooltipData): void => {
+              this.onChartTap(d);
+            }
+          })
+            .width('100%')
+          if (this.chartTooltipData !== null && this.chartTooltipData.tag === 'drain') {
+            this.ChartTooltip(this.chartTooltipData)
+          }
+        }
+        .width('100%')
+        .height(180)
       }
     }
     .width('100%')
@@ -450,14 +496,57 @@ export struct HistoryTab {
       if (this.chargeSessions.length === 0) {
         this.ChartEmpty($r('app.string.history_charge_empty'))
       } else {
-        SessionBarChart({ sessions: this.chargeSessions, mode: 1 })
-          .width('100%')
+        Stack({ alignContent: Alignment.TopStart }) {
+          SessionBarChart({
+            sessions: this.chargeSessions,
+            mode: 1,
+            tag: 'charge',
+            onTap: (d: ChartTooltipData): void => {
+              this.onChartTap(d);
+            }
+          })
+            .width('100%')
+          if (this.chartTooltipData !== null && this.chartTooltipData.tag === 'charge') {
+            this.ChartTooltip(this.chartTooltipData)
+          }
+        }
+        .width('100%')
+        .height(180)
       }
     }
     .width('100%')
     .padding(14)
     .backgroundColor($r('app.color.bg_card'))
     .borderRadius(16)
+  }
+
+  /** 图表悬浮信息卡片 */
+  @Builder
+  ChartTooltip(data: ChartTooltipData) {
+    Column({ space: 4 }) {
+      Text(data.valueText)
+        .fontSize(17)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(data.valueColor)
+      Text(data.timeText)
+        .fontSize(11)
+        .fontColor($r('app.color.text_secondary'))
+      if (data.note.length > 0) {
+        Text(data.note)
+          .fontSize(11)
+          .fontColor($r('app.color.text_secondary'))
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+    }
+    .width(160)
+    .padding(8)
+    .alignItems(HorizontalAlign.Start)
+    .backgroundColor($r('app.color.bg_card'))
+    .borderRadius(8)
+    .shadow({ radius: 10, color: 'rgba(0,0,0,0.15)', offsetY: 4 })
+    .position({ x: data.x, y: data.y })
+    .translate({ x: -80, y: -90 })
   }
 
   /** 图表无数据时的占位（高度与图表一致，避免布局跳动） */
