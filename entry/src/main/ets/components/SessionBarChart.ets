@@ -4,15 +4,30 @@ import { SessionType } from '../model/SessionType';
 import { CalcUtil } from '../utils/CalcUtil';
 import { DateTimeUtil } from '../utils/DateTimeUtil';
 
+const COLOR_CHARGE: number = 0xFF1FA978;
+const COLOR_USAGE: number = 0xFFE84026;
+const COLOR_IDLE: number = 0xFFF08200;
+
+/**
+ * 均等 x 轴下的时间标签：x 值为柱子序号（0,1,2...），映射回真实时间展示
+ */
 class ChartTimeFormatter implements IAxisValueFormatter {
+  times: number[] = [];
+
   getFormattedValue(value: number, axis: AxisBase): string {
-    return DateTimeUtil.formatAxisTime(value);
+    const idx: number = Math.round(value);
+    if (idx < 0 || idx >= this.times.length) {
+      return '';
+    }
+    return DateTimeUtil.formatAxisTime(this.times[idx]);
   }
 }
 
 @Component
 export struct SessionBarChart {
   @Prop @Watch('refresh') sessions: Session[] = [];
+  /** 0=耗电图（使用红/闲置黄），1=充电图（绿色） */
+  @Prop mode: number = 0;
   private model: BarChartModel = new BarChartModel();
   private timeFormatter: ChartTimeFormatter = new ChartTimeFormatter();
 
@@ -28,9 +43,10 @@ export struct SessionBarChart {
     this.model.getXAxis()?.setPosition(XAxisPosition.BOTTOM);
     this.model.getXAxis()?.setDrawGridLines(false);
     this.model.getXAxis()?.setValueFormatter(this.timeFormatter);
-    this.model.getXAxis()?.setLabelCount(4, true);
+    this.model.getXAxis()?.setLabelCount(6, true);
     this.model.getXAxis()?.setGranularity(1);
     this.model.getAxisRight()?.setEnabled(false);
+    this.model.getAxisLeft()?.setAxisMinimum(0);
     this.model.getAxisLeft()?.setDrawGridLines(true);
     this.model.setScaleEnabled(false);
     this.model.setDragXEnabled(true);
@@ -40,57 +56,48 @@ export struct SessionBarChart {
   }
 
   refresh(): void {
-    const completed: Session[] = [];
+    const list: Session[] = [];
     for (const s of this.sessions) {
-      if (s.isCompleted()) {
-        completed.push(s);
+      if (!s.isCompleted()) {
+        continue;
       }
+      if (this.mode === 1) {
+        if (s.type !== SessionType.CHARGING) {
+          continue;
+        }
+      } else if (s.type === SessionType.CHARGING) {
+        continue;
+      }
+      list.push(s);
     }
-    completed.sort((a: Session, b: Session): number => a.startTime - b.startTime);
+    list.sort((a: Session, b: Session): number => a.startTime - b.startTime);
+    // 均等 x 轴：柱子按序号等间距排列，时间仅用于底部标签
     const values: JArrayList<BarEntry> = new JArrayList<BarEntry>();
     const colors: number[] = [];
-    let minTime: number = -1;
-    let maxTime: number = -1;
-    for (let i = 0; i < completed.length; i++) {
-      const s: Session = completed[i];
-      const x: number = s.startTime;
-      if (minTime < 0 || x < minTime) {
-        minTime = x;
-      }
-      if (maxTime < 0 || x > maxTime) {
-        maxTime = x;
-      }
-      if (s.type === SessionType.CHARGING) {
-        values.add(new BarEntry(x, s.endBattery - s.startBattery));
-        colors.push(0xFF1FA978);
+    const times: number[] = [];
+    for (let i = 0; i < list.length; i++) {
+      const s: Session = list[i];
+      const y: number = this.mode === 1 ? s.endBattery - s.startBattery : CalcUtil.consumption(s);
+      values.add(new BarEntry(i, y));
+      times.push(s.startTime);
+      if (this.mode === 1) {
+        colors.push(COLOR_CHARGE);
       } else if (s.type === SessionType.IDLE) {
-        values.add(new BarEntry(x, CalcUtil.consumption(s)));
-        colors.push(0xFFF08200);
+        colors.push(COLOR_IDLE);
       } else {
-        values.add(new BarEntry(x, CalcUtil.consumption(s)));
-        colors.push(0xFFE84026);
+        colors.push(COLOR_USAGE);
       }
     }
     const set: BarDataSet = new BarDataSet(values, '');
     set.setColorsByArr(colors);
-    set.setDrawValues(true);
-    const list: JArrayList<IBarDataSet> = new JArrayList<IBarDataSet>();
-    list.add(set);
-    const data: BarData = new BarData(list);
-    // x 轴为时间戳，柱宽按数据时间跨度折算，避免柱子过细或过宽
-    let barWidth: number = 6 * 60 * 60 * 1000;
-    if (completed.length > 1 && maxTime > minTime) {
-      barWidth = (maxTime - minTime) / completed.length * 0.6;
-      const minWidth: number = 60 * 60 * 1000;
-      const maxWidth: number = 7 * 24 * 60 * 60 * 1000;
-      if (barWidth < minWidth) {
-        barWidth = minWidth;
-      }
-      if (barWidth > maxWidth) {
-        barWidth = maxWidth;
-      }
-    }
-    data.setBarWidth(barWidth);
+    // 柱顶数值仅在柱子较少时显示，避免重叠
+    set.setDrawValues(list.length <= 10);
+    const sets: JArrayList<IBarDataSet> = new JArrayList<IBarDataSet>();
+    sets.add(set);
+    const data: BarData = new BarData(sets);
+    // 均等轴下柱宽按槽位比例固定
+    data.setBarWidth(0.6);
+    this.timeFormatter.times = times;
     this.model.setData(data);
   }
 

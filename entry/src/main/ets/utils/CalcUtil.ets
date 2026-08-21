@@ -30,36 +30,6 @@ export class CalcUtil {
     return total;
   }
 
-  static countToday(sessions: Session[], startOfToday: number): number {
-    let count: number = 0;
-    for (const s of sessions) {
-      if (s.startTime >= startOfToday) {
-        count++;
-      }
-    }
-    return count;
-  }
-
-  static drainToday(sessions: Session[], startOfToday: number): number {
-    let total: number = 0;
-    for (const s of sessions) {
-      if (s.isCompleted() && s.endTime >= startOfToday && s.type === SessionType.USAGE) {
-        total += CalcUtil.consumption(s);
-      }
-    }
-    return total;
-  }
-
-  static chargeToday(sessions: Session[], startOfToday: number): number {
-    let total: number = 0;
-    for (const s of sessions) {
-      if (s.isCompleted() && s.endTime >= startOfToday && s.type === SessionType.CHARGING) {
-        total += s.endBattery - s.startBattery;
-      }
-    }
-    return total;
-  }
-
   static toChartPoints(sessions: Session[]): ChartPoint[] {
     const points: ChartPoint[] = [];
     const sorted: Session[] = sessions.slice().sort((a: Session, b: Session): number => a.startTime - b.startTime);

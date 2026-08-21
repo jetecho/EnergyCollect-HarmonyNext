@@ -189,8 +189,20 @@
       "value": "电量趋势"
     },
     {
-      "name": "history_bar_title",
-      "value": "耗电与充电"
+      "name": "history_drain_title",
+      "value": "耗电"
+    },
+    {
+      "name": "history_charge_title",
+      "value": "充电"
+    },
+    {
+      "name": "history_chart_empty",
+      "value": "近7天暂无数据"
+    },
+    {
+      "name": "history_charge_empty",
+      "value": "暂无充电记录"
     },
     {
       "name": "session_type_usage",

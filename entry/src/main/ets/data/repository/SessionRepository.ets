@@ -9,10 +9,17 @@ const TAG: string = 'EnergyCollect';
 
 export const ORPHAN_SESSION_THRESHOLD_MS: number = 12 * 60 * 60 * 1000;
 
+/** 单设备"今日"聚合统计（与 CalcUtil 语义一致：count 按 start_time，drain/charge 按 end_time） */
+export interface TodayStats {
+  count: number;
+  drain: number;
+  charge: number;
+}
+
 export class SessionRepository {
   private db: Database = Database.getInstance();
 
-  async listFiltered(deviceId: number, typeFilter: number): Promise<Session[]> {
+  async listFiltered(deviceId: number, typeFilter: number, startTimeMin?: number, limit?: number): Promise<Session[]> {
     const store: relationalStore.RdbStore = this.db.getStore();
     const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('sessions');
     if (deviceId > 0) {
@@ -21,6 +28,12 @@ export class SessionRepository {
     if (typeFilter >= 0) {
       pred.equalTo('type', typeFilter);
     }
+    if (startTimeMin !== undefined && startTimeMin > 0) {
+      pred.greaterThanOrEqualTo('start_time', startTimeMin);
+    }
+    if (limit !== undefined && limit > 0) {
+      pred.limitAs(limit);
+    }
     pred.orderByDesc('start_time');
     try {
       const resultSet: relationalStore.ResultSet = await store.query(pred);
@@ -28,6 +41,75 @@ export class SessionRepository {
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'listFiltered failed: %{public}s', JSON.stringify(e));
       throw new Error('listFiltered failed');
+    }
+  }
+
+  /** 进行中的会话（正常逻辑下每设备至多一条，取最新的） */
+  async getActiveSession(deviceId: number): Promise<Session | null> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    try {
+      const resultSet: relationalStore.ResultSet = await store.querySql(
+        'SELECT * FROM sessions WHERE device_id = ? AND (end_time IS NULL OR end_time = 0) ' +
+        'ORDER BY start_time DESC LIMIT 1', [deviceId]);
+      const list: Session[] = this.mapSessions(resultSet);
+      return list.length > 0 ? list[0] : null;
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'getActiveSession failed: %{public}s', JSON.stringify(e));
+      throw new Error('getActiveSession failed');
+    }
+  }
+
+  /** 最近一条已完成会话（决定设备当前电量/续航的基准） */
+  async getLastCompleted(deviceId: number): Promise<Session | null> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    try {
+      const resultSet: relationalStore.ResultSet = await store.querySql(
+        'SELECT * FROM sessions WHERE device_id = ? AND end_time > 0 AND end_battery >= 0 ' +
+        'ORDER BY start_time DESC LIMIT 1', [deviceId]);
+      const list: Session[] = this.mapSessions(resultSet);
+      return list.length > 0 ? list[0] : null;
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'getLastCompleted failed: %{public}s', JSON.stringify(e));
+      throw new Error('getLastCompleted failed');
+    }
+  }
+
+  /**
+   * 单设备今日聚合统计，一条 SQL 完成：
+   * - count：start_time 在今日起的会话数（含进行中）
+   * - drain：type=USAGE 且已完成、end_time 在今日起的耗电合计
+   * - charge：type=CHARGING 且已完成、end_time 在今日起的补能合计
+   */
+  async getTodayStats(deviceId: number, startOfToday: number): Promise<TodayStats> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    const sql: string =
+      'SELECT ' +
+      'COALESCE(SUM(CASE WHEN start_time >= ? THEN 1 ELSE 0 END), 0) AS c, ' +
+      'COALESCE(SUM(CASE WHEN type = 0 AND end_time > 0 AND end_battery >= 0 AND end_time >= ? ' +
+      'THEN start_battery - end_battery ELSE 0 END), 0) AS drain, ' +
+      'COALESCE(SUM(CASE WHEN type = 2 AND end_time > 0 AND end_battery >= 0 AND end_time >= ? ' +
+      'THEN end_battery - start_battery ELSE 0 END), 0) AS charge ' +
+      'FROM sessions WHERE device_id = ? AND (start_time >= ? OR end_time >= ?)';
+    try {
+      const resultSet: relationalStore.ResultSet = await store.querySql(sql,
+        [startOfToday, startOfToday, startOfToday, deviceId, startOfToday, startOfToday]);
+      const stats: TodayStats = { count: 0, drain: 0, charge: 0 };
+      try {
+        if (resultSet.goToFirstRow()) {
+          stats.count = resultSet.getLong(resultSet.getColumnIndex('c'));
+          stats.drain = resultSet.getLong(resultSet.getColumnIndex('drain'));
+          stats.charge = resultSet.getLong(resultSet.getColumnIndex('charge'));
+        }
+      } finally {
+        try {
+          resultSet.close();
+        } catch (e2) {
+        }
+      }
+      return stats;
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'getTodayStats failed: %{public}s', JSON.stringify(e));
+      throw new Error('getTodayStats failed');
     }
   }
 
@@ -60,14 +142,8 @@ export class SessionRepository {
       throw new Error('beginTransaction failed');
     }
     try {
-      const sessions: Session[] = await this.listFiltered(deviceId, -1);
-      let lastCompleted: Session | null = null;
-      for (const s of sessions) {
-        if (s.isCompleted()) {
-          lastCompleted = s;
-          break;
-        }
-      }
+      // 只需最近一条已完成会话做电量链条衔接，避免全量加载历史
+      const lastCompleted: Session | null = await this.getLastCompleted(deviceId);
       if (lastCompleted !== null && startBattery < lastCompleted.endBattery) {
         await this.insertCompleted(
           deviceId, SessionType.IDLE,

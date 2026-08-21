@@ -4,6 +4,7 @@ import { window } from '@kit.ArkUI';
 import { Database } from '../data/Database';
 import { PreferencesUtil } from '../data/PreferencesUtil';
 import { SessionRepository, ORPHAN_SESSION_THRESHOLD_MS } from '../data/repository/SessionRepository';
+import { DataNotifier } from '../data/DataNotifier';
 import { Immersive } from '../utils/Immersive';
 
 const DOMAIN: number = 0x0001;
@@ -52,7 +53,7 @@ export default class EntryAbility extends UIAbility {
 
     AppStorage.setOrCreate('colorMode', colorMode);
     AppStorage.setOrCreate('defaultDeviceId', defaultDeviceId > 0 ? defaultDeviceId : -1);
-    AppStorage.setOrCreate('dataVersion', 0);
+    DataNotifier.init();
     AppStorage.setOrCreate('systemColorMode', systemColorMode);
 
     this.applyColorMode(colorMode);

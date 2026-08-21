@@ -7,6 +7,7 @@ import { TrendChart } from '../../components/LineChart';
 import { SessionBarChart } from '../../components/SessionBarChart';
 import { Device, isNev } from '../../model/Device';
 import { Session } from '../../model/Session';
+import { SessionType } from '../../model/SessionType';
 import { ChartPoint } from '../../model/ChartPoint';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
 import { SessionRepository } from '../../data/repository/SessionRepository';
@@ -17,12 +18,19 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 const DOMAIN: number = 0x0001;
 const TAG: string = 'EnergyCollect';
 
+/** 充电图默认展示的最近充电记录上限（充电未必每天都有，按记录数而非时间范围） */
+const CHARGE_CHART_LIMIT: number = 20;
+
 @Component
 export struct HistoryTab {
-  @StorageProp('dataVersion') @Watch('reload') dataVersion: number = 0;
+  @StorageProp('historyDataVersion') @Watch('reload') historyDataVersion: number = 0;
   @State devices: Device[] = [];
   @State sessions: Session[] = [];
+  // 图表专用：最近 7 个自然日内的会话（与列表/统计的周期筛选相互独立）
+  @State chartSessions: Session[] = [];
   @State chartPoints: ChartPoint[] = [];
+  // 充电图专用：最近最多 20 条充电记录（不限时间范围）
+  @State chargeSessions: Session[] = [];
   @State filterDeviceId: number = 0;
   @State filterType: number = -1;
   @State filterPeriod: number = 0;
@@ -31,6 +39,7 @@ export struct HistoryTab {
   @State totalCharge: number = 0;
   @State statUnit: string = '%';
   @State isRefreshing: boolean = false;
+  private loadSeq: number = 0;
 
   private deviceRepo: DeviceRepository = new DeviceRepository();
   private sessionRepo: SessionRepository = new SessionRepository();
@@ -46,61 +55,107 @@ export struct HistoryTab {
     this.loadData();
   }
 
+  private periodCutoff(): number {
+    if (this.filterPeriod === 1) {
+      return DateTimeUtil.startOfWeek();
+    }
+    if (this.filterPeriod === 2) {
+      return DateTimeUtil.startOfMonth();
+    }
+    return 0;
+  }
+
+  /** 图表数据起点：今天零点往前推 6 天，共覆盖最近 7 个自然日 */
+  private chartCutoff(): number {
+    return DateTimeUtil.startOfToday() - 6 * 24 * 60 * 60 * 1000;
+  }
+
   private async loadData(): Promise<void> {
+    const seq: number = ++this.loadSeq;
     try {
       const devices: Device[] = await this.deviceRepo.listAll(false);
-      this.devices = devices;
-      if (devices.length === 0) {
-        this.sessions = [];
-        this.chartPoints = [];
-        this.totalSessions = 0;
-        this.totalDrain = 0;
-        this.totalCharge = 0;
+      if (seq !== this.loadSeq) {
         return;
       }
-      const currentExists: boolean = this.filterDeviceId > 0 &&
-        devices.some((d: Device): boolean => d.id === this.filterDeviceId);
+      if (devices.length === 0) {
+        if (seq === this.loadSeq) {
+          this.devices = [];
+          this.sessions = [];
+          this.chartSessions = [];
+          this.chartPoints = [];
+          this.chargeSessions = [];
+          this.totalSessions = 0;
+          this.totalDrain = 0;
+          this.totalCharge = 0;
+        }
+        return;
+      }
+      let nextFilter: number = this.filterDeviceId;
+      const currentExists: boolean = nextFilter > 0 &&
+        devices.some((d: Device): boolean => d.id === nextFilter);
       if (!currentExists) {
         const defaultId: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
         const hasDefault: boolean = defaultId > 0 && devices.some((d: Device): boolean => d.id === defaultId);
         if (hasDefault) {
-          this.filterDeviceId = defaultId;
+          nextFilter = defaultId;
         } else {
-          this.filterDeviceId = devices[0].id;
+          nextFilter = devices[0].id;
         }
       }
-      const sessionsAll: Session[] = await this.sessionRepo.listFiltered(this.filterDeviceId, this.filterType);
-      let cutoff: number = 0;
-      if (this.filterPeriod === 1) {
-        cutoff = DateTimeUtil.startOfWeek();
-      } else if (this.filterPeriod === 2) {
-        cutoff = DateTimeUtil.startOfMonth();
+      // 列表/统计按周期筛选；耗电图固定最近 7 个自然日；充电图取最近最多 20 条，三条查询并行
+      const cutoff: number = this.periodCutoff();
+      const chartStart: number = this.chartCutoff();
+      const lists: Session[][] = await Promise.all<Session[]>([
+        this.sessionRepo.listFiltered(nextFilter, this.filterType, cutoff),
+        this.sessionRepo.listFiltered(nextFilter, this.filterType, chartStart),
+        this.sessionRepo.listFiltered(nextFilter, SessionType.CHARGING, 0, CHARGE_CHART_LIMIT)
+      ]);
+      if (seq !== this.loadSeq) {
+        return;
       }
-      const sessions: Session[] = cutoff > 0
-        ? sessionsAll.filter((s: Session): boolean => s.startTime >= cutoff)
-        : sessionsAll;
-      this.sessions = sessions;
-      this.chartPoints = CalcUtil.toChartPoints(sessions);
-      this.totalSessions = sessions.length;
-      const dev: Device | null = this.findDevice(this.filterDeviceId);
+      const sessions: Session[] = lists[0];
+      const chartSessions: Session[] = lists[1];
+      const chargeSessions: Session[] = lists[2];
+      const chartPoints: ChartPoint[] = CalcUtil.toChartPoints(chartSessions);
+      const totalSessions: number = sessions.length;
+      const dev: Device | null = this.findInList(nextFilter, devices);
       const nev: boolean = dev !== null && isNev(dev.icon);
       const cap: number = dev !== null ? dev.batteryCapacity : 0;
+      let totalDrain: number = 0;
+      let totalCharge: number = 0;
+      let statUnit: string = '%';
       if (nev && cap > 0) {
-        this.totalDrain = CalcUtil.totalDrain(sessions) * cap / 100;
-        this.totalCharge = CalcUtil.totalCharge(sessions) * cap / 100;
-        this.statUnit = 'kWh';
+        totalDrain = CalcUtil.totalDrain(sessions) * cap / 100;
+        totalCharge = CalcUtil.totalCharge(sessions) * cap / 100;
+        statUnit = 'kWh';
       } else {
-        this.totalDrain = CalcUtil.totalDrain(sessions);
-        this.totalCharge = CalcUtil.totalCharge(sessions);
-        this.statUnit = '%';
+        totalDrain = CalcUtil.totalDrain(sessions);
+        totalCharge = CalcUtil.totalCharge(sessions);
       }
+      if (seq !== this.loadSeq) {
+        return;
+      }
+      this.devices = devices;
+      this.filterDeviceId = nextFilter;
+      this.sessions = sessions;
+      this.chartSessions = chartSessions;
+      this.chartPoints = chartPoints;
+      this.chargeSessions = chargeSessions;
+      this.totalSessions = totalSessions;
+      this.totalDrain = totalDrain;
+      this.totalCharge = totalCharge;
+      this.statUnit = statUnit;
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'HistoryTab loadData failed: %{public}s', JSON.stringify(e));
     }
   }
 
   private findDevice(id: number): Device | null {
-    for (const d of this.devices) {
+    return this.findInList(id, this.devices);
+  }
+
+  private findInList(id: number, list: Device[]): Device | null {
+    for (const d of list) {
       if (d.id === id) {
         return d;
       }
@@ -125,7 +180,8 @@ export struct HistoryTab {
   private async saveNote(id: number, note: string): Promise<void> {
     try {
       await this.sessionRepo.updateNote(id, note);
-      // 直接更新本地列表（新对象触发 ForEach 重新 diff），不依赖 dataVersion 全链路刷新
+      // 备注仅影响历史列表自身展示，本地更新（新对象触发 ForEach 重新 diff）即可，
+      // 无需任何跨 Tab 通知
       const updated: Session[] = [];
       for (const s of this.sessions) {
         if (s.id === id) {
@@ -137,7 +193,6 @@ export struct HistoryTab {
         }
       }
       this.sessions = updated;
-      this.bump();
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'saveNote failed: %{public}s', JSON.stringify(e));
     }
@@ -159,11 +214,6 @@ export struct HistoryTab {
     return copy;
   }
 
-  private bump(): void {
-    const v: number = AppStorage.get<number>('dataVersion') ?? 0;
-    AppStorage.setOrCreate('dataVersion', v + 1);
-  }
-
   build() {
     HdsNavigation() {
       Refresh({ refreshing: $$this.isRefreshing }) {
@@ -179,6 +229,7 @@ export struct HistoryTab {
               } else {
                 this.ChartCard()
                 this.BarChartCard()
+                this.ChargeChartCard()
                 this.ListSection()
               }
             }
@@ -354,8 +405,12 @@ export struct HistoryTab {
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
         .width('100%')
-      TrendChart({ points: this.chartPoints })
-        .width('100%')
+      if (this.chartSessions.length === 0) {
+        this.ChartEmpty($r('app.string.history_chart_empty'))
+      } else {
+        TrendChart({ points: this.chartPoints })
+          .width('100%')
+      }
     }
     .width('100%')
     .padding(14)
@@ -366,18 +421,61 @@ export struct HistoryTab {
   @Builder
   BarChartCard() {
     Column({ space: 8 }) {
-      Text($r('app.string.history_bar_title'))
+      Text($r('app.string.history_drain_title'))
         .fontSize(14)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
         .width('100%')
-      SessionBarChart({ sessions: this.sessions })
-        .width('100%')
+      if (this.chartSessions.length === 0) {
+        this.ChartEmpty($r('app.string.history_chart_empty'))
+      } else {
+        SessionBarChart({ sessions: this.chartSessions, mode: 0 })
+          .width('100%')
+      }
     }
     .width('100%')
     .padding(14)
     .backgroundColor($r('app.color.bg_card'))
     .borderRadius(16)
+  }
+
+  @Builder
+  ChargeChartCard() {
+    Column({ space: 8 }) {
+      Text($r('app.string.history_charge_title'))
+        .fontSize(14)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+        .width('100%')
+      if (this.chargeSessions.length === 0) {
+        this.ChartEmpty($r('app.string.history_charge_empty'))
+      } else {
+        SessionBarChart({ sessions: this.chargeSessions, mode: 1 })
+          .width('100%')
+      }
+    }
+    .width('100%')
+    .padding(14)
+    .backgroundColor($r('app.color.bg_card'))
+    .borderRadius(16)
+  }
+
+  /** 图表无数据时的占位（高度与图表一致，避免布局跳动） */
+  @Builder
+  ChartEmpty(message: ResourceStr) {
+    Column({ space: 6 }) {
+      Image($r('app.media.ic_history'))
+        .width(36)
+        .height(36)
+        .fillColor($r('app.color.icon_outline'))
+        .opacity(0.6)
+      Text(message)
+        .fontSize(13)
+        .fontColor($r('app.color.text_tertiary'))
+    }
+    .width('100%')
+    .height(180)
+    .justifyContent(FlexAlign.Center)
   }
 
   @Builder

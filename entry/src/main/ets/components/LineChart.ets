@@ -2,9 +2,18 @@ import { LineChart as MpLineChart, LineChartModel, LineDataSet, LineData, EntryO
 import { ChartPoint } from '../model/ChartPoint';
 import { DateTimeUtil } from '../utils/DateTimeUtil';
 
+/**
+ * 均等 x 轴下的时间标签：x 值为点序号（0,1,2...），映射回真实时间展示
+ */
 class ChartTimeFormatter implements IAxisValueFormatter {
+  times: number[] = [];
+
   getFormattedValue(value: number, axis: AxisBase): string {
-    return DateTimeUtil.formatAxisTime(value);
+    const idx: number = Math.round(value);
+    if (idx < 0 || idx >= this.times.length) {
+      return '';
+    }
+    return DateTimeUtil.formatAxisTime(this.times[idx]);
   }
 }
 
@@ -39,19 +48,24 @@ export struct TrendChart {
   }
 
   refresh(): void {
+    // 均等 x 轴：x 取点序号，时间仅用于底部标签
     const values: JArrayList<EntryOhos> = new JArrayList<EntryOhos>();
+    const times: number[] = [];
     for (let i = 0; i < this.points.length; i++) {
-      values.add(new EntryOhos(this.points[i].time, this.points[i].value));
+      values.add(new EntryOhos(i, this.points[i].value));
+      times.push(this.points[i].time);
     }
     const set: LineDataSet = new LineDataSet(values, '');
     set.setColorByColor(0xFF0A59F7);
     set.setLineWidth(2);
+    // 直线折线（不去平滑），转折点清晰
     set.setMode(Mode.LINEAR);
     set.setDrawCircles(false);
     set.setDrawValues(false);
     const list: JArrayList<ILineDataSet> = new JArrayList<ILineDataSet>();
     list.add(set);
     const data: LineData = new LineData(list);
+    this.timeFormatter.times = times;
     this.model.setData(data);
   }
 

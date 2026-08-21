@@ -8,9 +8,9 @@ import { Session } from '../../model/Session';
 import { SessionType } from '../../model/SessionType';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
 import { PreferencesUtil } from '../../data/PreferencesUtil';
-import { SessionRepository } from '../../data/repository/SessionRepository';
+import { SessionRepository, TodayStats } from '../../data/repository/SessionRepository';
 import { Database } from '../../data/Database';
-import { CalcUtil } from '../../utils/CalcUtil';
+import { DataNotifier } from '../../data/DataNotifier';
 import { DateTimeUtil } from '../../utils/DateTimeUtil';
 import { PromptAction } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -312,10 +312,11 @@ export struct DeviceCard {
 @Component
 export struct HomeTab {
   private promptAction: PromptAction = this.getUIContext().getPromptAction();
-  @StorageProp('dataVersion') @Watch('reload') dataVersion: number = 0;
+  @StorageProp('homeDataVersion') @Watch('reload') homeDataVersion: number = 0;
   @StorageProp('dbInitFailed') dbInitFailed: boolean = false;
   @State cards: DeviceCardData[] = [];
   @State showDeviceSheet: boolean = false;
+  private loadSeq: number = 0;
 
   private deviceRepo: DeviceRepository = new DeviceRepository();
   private sessionRepo: SessionRepository = new SessionRepository();
@@ -341,18 +342,13 @@ export struct HomeTab {
     }
   }
 
-  private async loadSessionsSafe(deviceId: number): Promise<Session[]> {
-    try {
-      return await this.sessionRepo.listFiltered(deviceId, -1);
-    } catch (e) {
-      hilog.error(DOMAIN, TAG, 'loadSessionsSafe failed for device %{public}d: %{public}s', deviceId, JSON.stringify(e));
-      return [];
-    }
-  }
-
   private async loadData(): Promise<void> {
+    const seq: number = ++this.loadSeq;
     try {
       const devices: Device[] = await this.deviceRepo.listAll(false);
+      if (seq !== this.loadSeq) {
+        return;
+      }
       const defaultId: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
       const ordered: Device[] = devices.slice().sort((a: Device, b: Device): number => {
         if (a.id === defaultId) {
@@ -364,56 +360,53 @@ export struct HomeTab {
         return 0;
       });
       const startToday: number = DateTimeUtil.startOfToday();
-      const sessionPromises: Promise<Session[]>[] = ordered.map((d: Device): Promise<Session[]> => {
-        return this.loadSessionsSafe(d.id);
-      });
-      const sessionsList: Session[][] = await Promise.all(sessionPromises);
-      const cards: DeviceCardData[] = [];
-      for (let i = 0; i < ordered.length; i++) {
-        const d: Device = ordered[i];
-        const sessions: Session[] = sessionsList[i];
-        let active: Session | null = null;
-        for (const s of sessions) {
-          if (s.isActive()) {
-            active = s;
-            break;
-          }
-        }
-        let currentBattery: number = -1;
-        let currentRange: number = -1;
-        if (isNev(d.icon) && d.rangeRated > 0) {
-          currentRange = d.rangeRated;
-        }
-        if (active !== null) {
-          currentBattery = active.startBattery;
-          if (active.startRange >= 0) {
-            currentRange = active.startRange;
-          }
-        } else {
-          for (const s of sessions) {
-            if (s.isCompleted()) {
-              currentBattery = s.endBattery;
-              if (s.endRange >= 0) {
-                currentRange = s.endRange;
-              }
-              break;
-            }
-          }
-        }
-        const card: DeviceCardData = new DeviceCardData();
-        card.device = d;
-        card.activeSession = active;
-        card.currentBattery = currentBattery;
-        card.currentRange = currentRange;
-        card.todayCount = CalcUtil.countToday(sessions, startToday);
-        card.todayDrain = CalcUtil.drainToday(sessions, startToday);
-        card.chargeGain = CalcUtil.chargeToday(sessions, startToday);
-        cards.push(card);
+      // 每设备 3 条轻量 SQL 并行查询（进行中/最近已完成/今日聚合），替代全量历史加载
+      const cards: DeviceCardData[] = await Promise.all(
+        ordered.map((d: Device): Promise<DeviceCardData> => this.loadDeviceCard(d, startToday)));
+      if (seq !== this.loadSeq) {
+        return;
       }
       this.cards = cards;
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'HomeTab loadData failed: %{public}s', JSON.stringify(e));
     }
+  }
+
+  private async loadDeviceCard(device: Device, startToday: number): Promise<DeviceCardData> {
+    const card: DeviceCardData = new DeviceCardData();
+    card.device = device;
+    card.currentRange = isNev(device.icon) && device.rangeRated > 0 ? device.rangeRated : -1;
+    try {
+      const results: Array<Session | TodayStats | null> = await Promise.all<Session | TodayStats | null>([
+        this.sessionRepo.getActiveSession(device.id),
+        this.sessionRepo.getLastCompleted(device.id),
+        this.sessionRepo.getTodayStats(device.id, startToday)
+      ]);
+      const active: Session | null = results[0] as Session | null;
+      const lastCompleted: Session | null = results[1] as Session | null;
+      const stats: TodayStats = results[2] as TodayStats;
+      card.activeSession = active;
+      if (active !== null) {
+        card.currentBattery = active.startBattery;
+        if (active.startRange >= 0) {
+          card.currentRange = active.startRange;
+        }
+      } else if (lastCompleted !== null) {
+        card.currentBattery = lastCompleted.endBattery;
+        if (lastCompleted.endRange >= 0) {
+          card.currentRange = lastCompleted.endRange;
+        }
+      } else {
+        card.currentBattery = -1;
+      }
+      card.todayCount = stats.count;
+      card.todayDrain = stats.drain;
+      card.chargeGain = stats.charge;
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'loadDeviceCard failed for device %{public}d: %{public}s',
+        device.id, JSON.stringify(e));
+    }
+    return card;
   }
 
   private async retryDbInit(): Promise<void> {
@@ -425,16 +418,11 @@ export struct HomeTab {
     try {
       await Database.getInstance().init(ctx);
       AppStorage.setOrCreate('dbInitFailed', false);
-      this.bump();
+      DataNotifier.notifyAll();
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'retryDbInit failed: %{public}s', JSON.stringify(e));
       this.showToastSafe($r('app.string.toast_action_failed'));
     }
-  }
-
-  private bump(): void {
-    const v: number = AppStorage.get<number>('dataVersion') ?? 0;
-    AppStorage.setOrCreate('dataVersion', v + 1);
   }
 
   private showToastSafe(message: ResourceStr): void {
@@ -500,8 +488,9 @@ export struct HomeTab {
       } else {
         await this.sessionRepo.startSession(deviceId, type, battery, note, range);
       }
-      this.bump();
-      this.loadData();
+      // 会话变更影响首页统计与历史页，定向通知；本 Tab 由 @Watch 触发 reload
+      DataNotifier.notifyHome();
+      DataNotifier.notifyHistory();
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'confirmStart failed: %{public}s', JSON.stringify(e));
       this.showToastSafe($r('app.string.toast_action_failed'));
@@ -511,8 +500,8 @@ export struct HomeTab {
   private async confirmEnd(id: number, battery: number, range: number): Promise<void> {
     try {
       await this.sessionRepo.endSession(id, battery, range);
-      this.bump();
-      this.loadData();
+      DataNotifier.notifyHome();
+      DataNotifier.notifyHistory();
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'confirmEnd failed: %{public}s', JSON.stringify(e));
       this.showToastSafe($r('app.string.toast_action_failed'));
@@ -524,8 +513,7 @@ export struct HomeTab {
       const id: number = await this.deviceRepo.insert(name, icon, capacity, rangeRated, statMode);
       await this.ensureDefaultDevice(id);
       this.showDeviceSheet = false;
-      this.bump();
-      this.loadData();
+      DataNotifier.notifyAll();
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'saveDevice failed: %{public}s', JSON.stringify(e));
       this.showToastSafe($r('app.string.toast_action_failed'));

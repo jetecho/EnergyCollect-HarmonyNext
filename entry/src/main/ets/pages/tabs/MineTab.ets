@@ -7,6 +7,7 @@ import { DeviceRepository } from '../../data/repository/DeviceRepository';
 import { SessionRepository } from '../../data/repository/SessionRepository';
 import { PreferencesUtil } from '../../data/PreferencesUtil';
 import { Database } from '../../data/Database';
+import { DataNotifier } from '../../data/DataNotifier';
 import { Immersive } from '../../utils/Immersive';
 import { PromptAction, promptAction } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -41,7 +42,7 @@ interface ExportSessionV2 {
 @Component
 export struct MineTab {
   private promptAction: PromptAction = this.getUIContext().getPromptAction();
-  @StorageProp('dataVersion') @Watch('reload') dataVersion: number = 0;
+  @StorageProp('mineDataVersion') @Watch('reload') mineDataVersion: number = 0;
   @StorageProp('colorMode') colorMode: number = -1;
   @State devices: Device[] = [];
   @State showSheet: boolean = false;
@@ -87,11 +88,6 @@ export struct MineTab {
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'MineTab loadData failed: %{public}s', JSON.stringify(e));
     }
-  }
-
-  private bump(): void {
-    const v: number = AppStorage.get<number>('dataVersion') ?? 0;
-    AppStorage.setOrCreate('dataVersion', v + 1);
   }
 
   private showToastSafe(message: ResourceStr): void {
@@ -143,33 +139,43 @@ export struct MineTab {
   }
 
   private async onSaveDevice(name: string, icon: string, capacity: number, rangeRated: number, statMode: string): Promise<void> {
-    if (this.sheetId === 0) {
-      const id: number = await this.deviceRepo.insert(name, icon, capacity, rangeRated, statMode);
-      const curDefault: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
-      let defaultValid: boolean = false;
-      if (curDefault > 0) {
-        const exist: Device | null = await this.deviceRepo.getById(curDefault);
-        defaultValid = exist !== null;
+    try {
+      if (this.sheetId === 0) {
+        const id: number = await this.deviceRepo.insert(name, icon, capacity, rangeRated, statMode);
+        const curDefault: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
+        let defaultValid: boolean = false;
+        if (curDefault > 0) {
+          const exist: Device | null = await this.deviceRepo.getById(curDefault);
+          defaultValid = exist !== null;
+        }
+        if (!defaultValid) {
+          AppStorage.setOrCreate('defaultDeviceId', id);
+          await PreferencesUtil.setDefaultDeviceId(id);
+        }
+      } else {
+        await this.deviceRepo.update(this.sheetId, name, icon, capacity, rangeRated, statMode);
       }
-      if (!defaultValid) {
-        AppStorage.setOrCreate('defaultDeviceId', id);
-        PreferencesUtil.setDefaultDeviceId(id);
-      }
-    } else {
-      await this.deviceRepo.update(this.sheetId, name, icon, capacity, rangeRated, statMode);
+      this.showSheet = false;
+      DataNotifier.notifyAll();
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'onSaveDevice failed: %{public}s', JSON.stringify(e));
+      this.showToastSafe($r('app.string.toast_action_failed'));
     }
-    this.showSheet = false;
-    this.bump();
   }
 
   private async onSetDefaultDevice(): Promise<void> {
     if (this.sheetId <= 0) {
       return;
     }
-    AppStorage.setOrCreate('defaultDeviceId', this.sheetId);
-    await PreferencesUtil.setDefaultDeviceId(this.sheetId);
-    this.showSheet = false;
-    this.bump();
+    try {
+      AppStorage.setOrCreate('defaultDeviceId', this.sheetId);
+      await PreferencesUtil.setDefaultDeviceId(this.sheetId);
+      this.showSheet = false;
+      DataNotifier.notifyAll();
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'onSetDefaultDevice failed: %{public}s', JSON.stringify(e));
+      this.showToastSafe($r('app.string.toast_action_failed'));
+    }
   }
 
   private async onDeleteDevice(): Promise<void> {
@@ -178,15 +184,20 @@ export struct MineTab {
     }
     const deleteId: number = this.sheetId;
     this.showSheet = false;
-    await this.deviceRepo.delete(deleteId);
-    const defId: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
-    if (defId === deleteId) {
-      const remaining: Device[] = await this.deviceRepo.listAll(false);
-      const next: number = remaining.length > 0 ? remaining[0].id : -1;
-      AppStorage.setOrCreate('defaultDeviceId', next);
-      await PreferencesUtil.setDefaultDeviceId(next);
+    try {
+      await this.deviceRepo.delete(deleteId);
+      const defId: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
+      if (defId === deleteId) {
+        const remaining: Device[] = await this.deviceRepo.listAll(false);
+        const next: number = remaining.length > 0 ? remaining[0].id : -1;
+        AppStorage.setOrCreate('defaultDeviceId', next);
+        await PreferencesUtil.setDefaultDeviceId(next);
+      }
+      DataNotifier.notifyAll();
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'onDeleteDevice failed: %{public}s', JSON.stringify(e));
+      this.showToastSafe($r('app.string.toast_action_failed'));
     }
-    this.bump();
   }
 
   private async applyColorMode(mode: number): Promise<void> {
@@ -307,6 +318,7 @@ export struct MineTab {
       fileIo.closeSync(file);
       this.showToastSafe($r('app.string.toast_export_success'));
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'exportData failed: %{public}s', JSON.stringify(e));
       this.showToastSafe($r('app.string.toast_export_fail'));
     }
   }
@@ -377,6 +389,7 @@ export struct MineTab {
         }
       });
     } catch (e) {
+      hilog.error(DOMAIN, TAG, 'importData failed: %{public}s', JSON.stringify(e));
       this.showToastSafe($r('app.string.toast_import_fail'));
     }
   }
@@ -453,13 +466,14 @@ export struct MineTab {
           await PreferencesUtil.setDefaultDeviceId(firstNewDeviceId);
         }
       }
-      this.bump();
+      DataNotifier.notifyAll();
       this.showToastSafe(`导入成功：${devCount} 个设备，${sessCount} 条会话`);
     } catch (e) {
       try {
         db.rollbackTransaction();
       } catch (e2) {
       }
+      hilog.error(DOMAIN, TAG, 'doImport failed: %{public}s', JSON.stringify(e));
       this.showToastSafe($r('app.string.toast_import_fail'));
     }
   }
@@ -501,10 +515,15 @@ export struct MineTab {
   }
 
   private async doClear(): Promise<void> {
-    await this.sessionRepo.deleteAll();
-    AppStorage.setOrCreate('defaultDeviceId', -1);
-    await PreferencesUtil.setDefaultDeviceId(-1);
-    this.bump();
+    try {
+      await this.sessionRepo.deleteAll();
+      AppStorage.setOrCreate('defaultDeviceId', -1);
+      await PreferencesUtil.setDefaultDeviceId(-1);
+      DataNotifier.notifyAll();
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'doClear failed: %{public}s', JSON.stringify(e));
+      this.showToastSafe($r('app.string.toast_action_failed'));
+    }
   }
 
   build() {
