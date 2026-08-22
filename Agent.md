@@ -50,10 +50,11 @@ entry/src/main/ets/
 │   ├── LineChart.ets               # mpchart 折线图封装
 │   ├── SessionBarChart.ets         # mpchart 柱状图封装
 │   └── StatCard.ets / EmptyState.ets
-├── model/                          # Device / Session / SessionType / ChartPoint
+├── model/                          # Device / Session / SessionType / ChartPoint / ChartTooltip
 ├── data/
 │   ├── Database.ets                # 建表 + 兼容迁移（ALTER TABLE）
 │   ├── PreferencesUtil.ets         # 主题 / 默认设备等偏好
+│   ├── DataNotifier.ets            # 跨 Tab 定向数据变更通知
 │   └── repository/                 # DeviceRepository / SessionRepository
 └── utils/
     ├── CalcUtil.ets                # 电量/续航/kWh 统计计算（纯函数，可单测）
@@ -77,11 +78,15 @@ entry/src/mock/        # hamock mock 配置
 - 新能源汽车：历史页统计用 kWh（电量% × 容量）而非百分比；续航按比例弱关联跟随
 - 数据库兼容：结构变更优先用启动时 `ALTER TABLE` 迁移，避免破坏旧库
 - 图表 x 轴按序号均等间距（真实时间仅作轴标签）；`LineChart` 纯线条、`SessionBarChart` 柱色约定：使用红/充电绿/空闲黄；两者点击数据点经 `onTap` 上抛 `ChartTooltipData`，悬浮详情由 HistoryTab 统一渲染与隐藏
+- 图表点位归属由 `ChartPoint.session` 引用携带（勿按时间戳反查会话，相邻会话衔接点时间戳相同）；图表色值硬编码在组件内、与 `color.json` 保持同步，调整色板需两处同步
+- 跨 Tab 数据刷新走 `DataNotifier` 定向通知（notifyHome/notifyHistory/notifyMine/notifyAll），勿在页面间直接持有引用
+- ForEach 键值必须包含条目渲染的全部易变内容——同键复用时 itemGenerator 不会重新执行，漏掉的字段在数据更新后会显示旧值；首页卡片另依赖 `@Observed` 的 `DeviceCardData` 原地赋值刷新
+- 启动顺序：`loadContent` 先于数据库初始化（避免首帧阻塞）；库就绪后 EntryAbility.`initData` 用 `DataNotifier.notifyAll()` 触发各 Tab 首次加载
 
 ## 编码约定
 
 - ArkTS 严格模式（`caseSensitiveCheck: true`、`useNormalizedOHMUrl: true`）：大小写敏感，导入使用归一化 OHM URL（`@ohos/...`、`@kit/...`），**不要用相对路径导入 SDK 包**
-- UI 文案放在 `resources`（`$string`/`$media`/`$color` 引用），不在代码中硬编码；应用语言为中文
+- UI 文案放在 `resources`（`$string`/`$media`/`$color` 引用），不在代码中硬编码；带参数的文案用 `%1$d` 占位符并经 `$r('app.string.xxx', args)` 传参，勿在代码中拼接中文句子；应用语言为中文
 - 业务计算放 `utils/CalcUtil` 等纯函数模块，便于 hypium 单测；数据库访问走 `data/repository` 层，页面不直接操作 relationalStore
 - 新增测试写在 `entry/src/test/*.test.ets`（本地逻辑）或 `entry/src/ohosTest`（设备相关），用 hypium 的 `describe/it/expect`
 - 修改 model/DB schema 时同步检查 `Database.ets` 迁移逻辑、导入导出 JSON 校验与 `README.md` 数据模型章节

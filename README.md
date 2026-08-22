@@ -78,10 +78,11 @@ entry/src/main/ets/
 │   ├── LineChart (TrendChart)   # mpchart 折线图封装
 │   ├── SessionBarChart    # mpchart 柱状图封装
 │   ├── StatCard / EmptyState    # 通用组件
-├── model/                 # 数据模型（Device / Session / SessionType / ChartPoint）
+├── model/                 # 数据模型（Device / Session / SessionType / ChartPoint / ChartTooltipData）
 ├── data/
 │   ├── Database.ets       # 数据库 schema + 兼容迁移（ALTER TABLE）
 │   ├── PreferencesUtil    # 偏好存储（主题/默认设备）
+│   ├── DataNotifier.ets   # 跨 Tab 定向数据变更通知
 │   └── repository/        # DeviceRepository / SessionRepository
 └── utils/
     ├── CalcUtil           # 电量/续航/kWh 统计计算
@@ -124,6 +125,10 @@ ohpm install
 hdc install entry/build/default/outputs/default/entry-default-signed.hap
 hdc shell aa start -a EntryAbility -b <bundleName>
 ```
+
+### 单元测试
+- 本地纯逻辑测试：`entry/src/test/LocalUnit.test.ets`（hypium），在 DevEco Studio 中直接运行，无需设备；覆盖 CalcUtil（耗电/补能/kWh 换算/图表点位）、DateTimeUtil（格式化与周/月边界）、Session 状态判定
+- 设备相关仪器化测试：`entry/src/ohosTest`
 
 ## 使用流程
 
