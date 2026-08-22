@@ -284,7 +284,7 @@ export struct HistoryTab {
         Row({ space: 8 }) {
           ForEach(this.devices, (d: Device) => {
             this.DeviceChip(d.id, d.name)
-          }, (d: Device) => `d${d.id}`)
+          }, (d: Device) => `d${d.id}_${d.name}`)
         }
         .padding({ left: 16, right: 4 })
       }
@@ -570,6 +570,8 @@ export struct HistoryTab {
   @Builder
   ListSection() {
     Column({ space: 10 }) {
+      // 键值需包含条目渲染的全部易变内容（备注、设备名/图标）：
+      // ForEach 同键复用组件时不会重新执行 itemGenerator，漏掉的字段在数据更新后会显示旧值
       ForEach(this.sessions, (s: Session) => {
         SessionItem({
           session: s,
@@ -579,7 +581,7 @@ export struct HistoryTab {
             this.openNoteDialog(session);
           }
         })
-      }, (s: Session) => `${s.id}_${s.endTime}_${s.note}`)
+      }, (s: Session) => `${s.id}_${s.endTime}_${s.note}_${this.findDevice(s.deviceId)?.name ?? ''}_${this.findDevice(s.deviceId)?.icon ?? 'other'}`)
     }
     .width('100%')
   }

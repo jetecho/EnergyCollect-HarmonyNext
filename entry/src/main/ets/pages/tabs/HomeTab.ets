@@ -360,9 +360,20 @@ export struct HomeTab {
         return 0;
       });
       const startToday: number = DateTimeUtil.startOfToday();
-      // 每设备 3 条轻量 SQL 并行查询（进行中/最近已完成/今日聚合），替代全量历史加载
-      const cards: DeviceCardData[] = await Promise.all(
-        ordered.map((d: Device): Promise<DeviceCardData> => this.loadDeviceCard(d, startToday)));
+      // 每设备 3 条轻量 SQL 并行查询（进行中/最近已完成/今日聚合），替代全量历史加载。
+      // 复用已有卡片对象并原地赋值（@Observed + @ObjectLink）：ForEach 同键复用组件时
+      // 也能刷到新数据，修复设备改名/导入后首页仍显示旧值的问题
+      const oldById: Map<number, DeviceCardData> = new Map<number, DeviceCardData>();
+      for (const c of this.cards) {
+        oldById.set(c.device.id, c);
+      }
+      const cards: DeviceCardData[] =
+        ordered.map((d: Device): DeviceCardData => oldById.get(d.id) ?? new DeviceCardData());
+      const fills: Promise<void>[] = [];
+      for (let i: number = 0; i < ordered.length; i++) {
+        fills.push(this.fillDeviceCard(cards[i], ordered[i], startToday, seq));
+      }
+      await Promise.all(fills);
       if (seq !== this.loadSeq) {
         return;
       }
@@ -372,20 +383,23 @@ export struct HomeTab {
     }
   }
 
-  private async loadDeviceCard(device: Device, startToday: number): Promise<DeviceCardData> {
-    const card: DeviceCardData = new DeviceCardData();
-    card.device = device;
-    card.currentRange = isNev(device.icon) && device.rangeRated > 0 ? device.rangeRated : -1;
+  private async fillDeviceCard(card: DeviceCardData, device: Device, startToday: number, seq: number): Promise<void> {
     try {
       const results: Array<Session | TodayStats | null> = await Promise.all<Session | TodayStats | null>([
         this.sessionRepo.getActiveSession(device.id),
         this.sessionRepo.getLastCompleted(device.id),
         this.sessionRepo.getTodayStats(device.id, startToday)
       ]);
+      if (seq !== this.loadSeq) {
+        return;
+      }
       const active: Session | null = results[0] as Session | null;
       const lastCompleted: Session | null = results[1] as Session | null;
       const stats: TodayStats = results[2] as TodayStats;
+      card.device = device;
       card.activeSession = active;
+      card.currentBattery = -1;
+      card.currentRange = isNev(device.icon) && device.rangeRated > 0 ? device.rangeRated : -1;
       if (active !== null) {
         card.currentBattery = active.startBattery;
         if (active.startRange >= 0) {
@@ -396,17 +410,20 @@ export struct HomeTab {
         if (lastCompleted.endRange >= 0) {
           card.currentRange = lastCompleted.endRange;
         }
-      } else {
-        card.currentBattery = -1;
       }
       card.todayCount = stats.count;
       card.todayDrain = stats.drain;
       card.chargeGain = stats.charge;
     } catch (e) {
-      hilog.error(DOMAIN, TAG, 'loadDeviceCard failed for device %{public}d: %{public}s',
+      hilog.error(DOMAIN, TAG, 'fillDeviceCard failed for device %{public}d: %{public}s',
         device.id, JSON.stringify(e));
+      if (seq === this.loadSeq) {
+        card.device = device;
+        card.activeSession = null;
+        card.currentBattery = -1;
+        card.currentRange = isNev(device.icon) && device.rangeRated > 0 ? device.rangeRated : -1;
+      }
     }
-    return card;
   }
 
   private async retryDbInit(): Promise<void> {

@@ -624,7 +624,7 @@ export struct MineTab {
         Column({ space: 10 }) {
           ForEach(this.devices, (d: Device) => {
             this.DeviceRow(d)
-          }, (d: Device) => `m${d.id}`)
+          }, (d: Device) => `m${d.id}_${d.name}_${d.icon}`)
         }
         .width('100%')
       }
