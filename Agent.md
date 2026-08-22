@@ -76,7 +76,7 @@ entry/src/mock/        # hamock mock 配置
 - 默认设备：首个添加的设备自动成为默认；首页置顶 + 历史页默认显示
 - 新能源汽车：历史页统计用 kWh（电量% × 容量）而非百分比；续航按比例弱关联跟随
 - 数据库兼容：结构变更优先用启动时 `ALTER TABLE` 迁移，避免破坏旧库
-- 图表 x 轴用真实时间戳；`LineChart` 纯线条不可点击，`SessionBarChart` 柱色约定：使用红/充电绿/空闲黄
+- 图表 x 轴按序号均等间距（真实时间仅作轴标签）；`LineChart` 纯线条、`SessionBarChart` 柱色约定：使用红/充电绿/空闲黄；两者点击数据点经 `onTap` 上抛 `ChartTooltipData`，悬浮详情由 HistoryTab 统一渲染与隐藏
 
 ## 编码约定
 
