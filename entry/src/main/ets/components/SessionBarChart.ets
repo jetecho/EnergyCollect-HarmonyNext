@@ -4,10 +4,7 @@ import { SessionType } from '../model/SessionType';
 import { CalcUtil } from '../utils/CalcUtil';
 import { DateTimeUtil } from '../utils/DateTimeUtil';
 import { ChartTooltipData } from '../model/ChartTooltip';
-
-const COLOR_CHARGE: number = 0xFF1FA978;
-const COLOR_USAGE: number = 0xFFE84026;
-const COLOR_IDLE: number = 0xFFF08200;
+import { Immersive } from '../utils/Immersive';
 
 /**
  * 均等 x 轴下的时间标签：x 值为柱子序号（0,1,2...），映射回真实时间展示
@@ -31,6 +28,9 @@ export struct SessionBarChart {
   @Prop mode: number = 0;
   /** 来源标识，用于 HistoryTab 区分 tooltip 归属 */
   @Prop tag: string = '';
+  /** 深浅色跟随应用设置/系统配置，变化时重绘配色 */
+  @StorageProp('colorMode') @Watch('refresh') colorMode: number = -1;
+  @StorageProp('systemColorMode') @Watch('refresh') systemColorMode: number = -1;
   /** 命中柱子时上抛悬浮信息 */
   onTap: (data: ChartTooltipData) => void = (): void => {};
   private model: BarChartModel = new BarChartModel();
@@ -65,6 +65,8 @@ export struct SessionBarChart {
   }
 
   refresh(): void {
+    const isDark: boolean = Immersive.isDarkMode(this.colorMode, this.systemColorMode);
+    this.applyPalette(isDark);
     const list: Session[] = [];
     for (const s of this.sessions) {
       if (!s.isCompleted()) {
@@ -82,25 +84,30 @@ export struct SessionBarChart {
     list.sort((a: Session, b: Session): number => a.startTime - b.startTime);
     // 记录当前绘制的会话，供点击选中时回查
     this.displaySessions = list;
+    // 柱色与 color.json 保持同步：充电 charge_color、闲置 idle_color、使用 danger
+    const chargeColor: number = isDark ? 0xFF3DCE9E : 0xFF1FA978;
+    const usageColor: number = isDark ? 0xFFFF6A4D : 0xFFE84026;
+    const idleColor: number = isDark ? 0xFFFFB020 : 0xFFF08200;
     // 均等 x 轴：柱子按序号等间距排列，时间仅用于底部标签
     const values: JArrayList<BarEntry> = new JArrayList<BarEntry>();
     const colors: number[] = [];
     const times: number[] = [];
-    for (let i = 0; i < list.length; i++) {
+    for (let i: number = 0; i < list.length; i++) {
       const s: Session = list[i];
       const y: number = this.mode === 1 ? s.endBattery - s.startBattery : CalcUtil.consumption(s);
       values.add(new BarEntry(i, y));
       times.push(s.startTime);
       if (this.mode === 1) {
-        colors.push(COLOR_CHARGE);
+        colors.push(chargeColor);
       } else if (s.type === SessionType.IDLE) {
-        colors.push(COLOR_IDLE);
+        colors.push(idleColor);
       } else {
-        colors.push(COLOR_USAGE);
+        colors.push(usageColor);
       }
     }
     const set: BarDataSet = new BarDataSet(values, '');
     set.setColorsByArr(colors);
+    set.setValueTextColor(isDark ? 0xFFA8A8A8 : 0xFF555770);
     // 柱顶数值仅在柱子较少时显示，避免重叠
     set.setDrawValues(list.length <= 10);
     const sets: JArrayList<IBarDataSet> = new JArrayList<IBarDataSet>();
@@ -110,6 +117,16 @@ export struct SessionBarChart {
     data.setBarWidth(0.6);
     this.timeFormatter.times = times;
     this.model.setData(data);
+  }
+
+  /** 轴标签与网格线配色随深浅色切换（色值与 color.json 的 text_tertiary/divider 保持同步） */
+  private applyPalette(isDark: boolean): void {
+    const labelColor: number = isDark ? 0xFF6E6E6E : 0xFF99A0B3;
+    const gridColor: number = isDark ? 0xFF2A2A2A : 0xFFE5E8EE;
+    this.model.getXAxis()?.setTextColor(labelColor);
+    this.model.getXAxis()?.setGridColor(gridColor);
+    this.model.getAxisLeft()?.setTextColor(labelColor);
+    this.model.getAxisLeft()?.setGridColor(gridColor);
   }
 
   /** 按坐标判断是否命中柱子，命中则上抛悬浮信息 */

@@ -1,8 +1,8 @@
 import { LineChart as MpLineChart, LineChartModel, LineDataSet, LineData, EntryOhos, JArrayList, Mode, XAxisPosition, ILineDataSet, AxisBase, IAxisValueFormatter, Highlight } from '@ohos/mpchart';
 import { ChartPoint } from '../model/ChartPoint';
-import { Session } from '../model/Session';
 import { DateTimeUtil } from '../utils/DateTimeUtil';
 import { ChartTooltipData } from '../model/ChartTooltip';
+import { Immersive } from '../utils/Immersive';
 
 /**
  * 均等 x 轴下的时间标签：x 值为点序号（0,1,2...），映射回真实时间展示
@@ -22,16 +22,15 @@ class ChartTimeFormatter implements IAxisValueFormatter {
 @Component
 export struct TrendChart {
   @Prop @Watch('refresh') points: ChartPoint[] = [];
-  /** 原始会话列表，用于把折线上的点映射回对应会话（取备注） */
-  @Prop @Watch('refresh') sessions: Session[] = [];
   /** 来源标识 */
   @Prop tag: string = '';
+  /** 深浅色跟随应用设置/系统配置，变化时重绘配色 */
+  @StorageProp('colorMode') @Watch('refresh') colorMode: number = -1;
+  @StorageProp('systemColorMode') @Watch('refresh') systemColorMode: number = -1;
   /** 命中数据点时上抛悬浮信息 */
   onTap: (data: ChartTooltipData) => void = (): void => {};
   private model: LineChartModel = new LineChartModel();
   private timeFormatter: ChartTimeFormatter = new ChartTimeFormatter();
-  /** 时间 -> 会话（start/end 各映射一次），供点击回查 */
-  private sessionByTime: Map<number, Session> = new Map<number, Session>();
   private downX: number = -1;
   private downY: number = -1;
 
@@ -60,23 +59,18 @@ export struct TrendChart {
   }
 
   refresh(): void {
+    const isDark: boolean = Immersive.isDarkMode(this.colorMode, this.systemColorMode);
+    this.applyPalette(isDark);
     // 均等 x 轴：x 取点序号，时间仅用于底部标签
     const values: JArrayList<EntryOhos> = new JArrayList<EntryOhos>();
     const times: number[] = [];
-    for (let i = 0; i < this.points.length; i++) {
+    for (let i: number = 0; i < this.points.length; i++) {
       values.add(new EntryOhos(i, this.points[i].value));
       times.push(this.points[i].time);
     }
-    // 建立 时间->会话 映射
-    this.sessionByTime.clear();
-    for (const s of this.sessions) {
-      this.sessionByTime.set(s.startTime, s);
-      if (s.isCompleted()) {
-        this.sessionByTime.set(s.endTime, s);
-      }
-    }
     const set: LineDataSet = new LineDataSet(values, '');
-    set.setColorByColor(0xFF0A59F7);
+    // 线色与 color.json 的 brand 保持同步（浅 #0A59F7 / 深 #3D6CFF）
+    set.setColorByColor(isDark ? 0xFF3D6CFF : 0xFF0A59F7);
     set.setLineWidth(2);
     // 直线折线（不去平滑），转折点清晰
     set.setMode(Mode.LINEAR);
@@ -87,6 +81,16 @@ export struct TrendChart {
     const data: LineData = new LineData(list);
     this.timeFormatter.times = times;
     this.model.setData(data);
+  }
+
+  /** 轴标签与网格线配色随深浅色切换（色值与 color.json 的 text_tertiary/divider 保持同步） */
+  private applyPalette(isDark: boolean): void {
+    const labelColor: number = isDark ? 0xFF6E6E6E : 0xFF99A0B3;
+    const gridColor: number = isDark ? 0xFF2A2A2A : 0xFFE5E8EE;
+    this.model.getXAxis()?.setTextColor(labelColor);
+    this.model.getXAxis()?.setGridColor(gridColor);
+    this.model.getAxisLeft()?.setTextColor(labelColor);
+    this.model.getAxisLeft()?.setGridColor(gridColor);
   }
 
   /** 按坐标判断是否命中数据点（距离阈值），命中则上抛悬浮信息 */
@@ -106,13 +110,12 @@ export struct TrendChart {
       return;
     }
     const pt: ChartPoint = this.points[idx];
-    const s: Session | undefined = this.sessionByTime.get(pt.time);
     this.onTap({
       tag: this.tag,
       valueText: `${pt.value}%`,
       valueColor: $r('app.color.brand'),
       timeText: DateTimeUtil.formatDateTime(pt.time),
-      note: s !== undefined ? s.note : '',
+      note: pt.session !== null ? pt.session.note : '',
       x: h.getXPx(),
       y: h.getYPx()
     });
