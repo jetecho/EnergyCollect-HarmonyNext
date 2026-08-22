@@ -314,6 +314,8 @@ export struct HomeTab {
   private promptAction: PromptAction = this.getUIContext().getPromptAction();
   @StorageProp('homeDataVersion') @Watch('reload') homeDataVersion: number = 0;
   @StorageProp('dbInitFailed') dbInitFailed: boolean = false;
+  // 孤儿会话恢复晚于页面创建时，通过 AppStorage 变化补发提示
+  @StorageProp('recoveredSessions') @Watch('onRecoveredSessionsChange') recoveredSessions: number = 0;
   @State cards: DeviceCardData[] = [];
   @State showDeviceSheet: boolean = false;
   private loadSeq: number = 0;
@@ -340,6 +342,10 @@ export struct HomeTab {
       AppStorage.setOrCreate('recoveredSessions', 0);
       this.showToastSafe(`检测到 ${recovered} 条异常会话，已自动结束`);
     }
+  }
+
+  onRecoveredSessionsChange(): void {
+    this.notifyRecoveredSessions();
   }
 
   private async loadData(): Promise<void> {
