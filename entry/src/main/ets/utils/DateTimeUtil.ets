@@ -48,21 +48,21 @@ export class DateTimeUtil {
     return DateTimeUtil.pad(d.getHours()) + ':' + DateTimeUtil.pad(d.getMinutes());
   }
 
-  static formatDuration(ms: number): string {
+  static formatDuration(ms: number): ResourceStr {
     if (ms <= 0) {
-      return '0秒';
+      return $r('app.string.duration_format_s', 0);
     }
     const totalSec: number = Math.floor(ms / 1000);
     const hours: number = Math.floor(totalSec / 3600);
     const minutes: number = Math.floor((totalSec % 3600) / 60);
     const seconds: number = totalSec % 60;
     if (hours > 0) {
-      return hours + '时' + minutes + '分';
+      return $r('app.string.duration_format_hm', hours, minutes);
     }
     if (minutes > 0) {
-      return minutes + '分' + seconds + '秒';
+      return $r('app.string.duration_format_ms', minutes, seconds);
     }
-    return seconds + '秒';
+    return $r('app.string.duration_format_s', seconds);
   }
 
   static formatClock(ms: number): string {
@@ -76,14 +76,14 @@ export class DateTimeUtil {
     return DateTimeUtil.pad(hours) + ':' + DateTimeUtil.pad(minutes) + ':' + DateTimeUtil.pad(seconds);
   }
 
-  static startOfToday(): number {
-    const d: Date = new Date();
+  static startOfToday(now: number = Date.now()): number {
+    const d: Date = new Date(now);
     d.setHours(0, 0, 0, 0);
     return d.getTime();
   }
 
-  static startOfWeek(): number {
-    const d: Date = new Date();
+  static startOfWeek(now: number = Date.now()): number {
+    const d: Date = new Date(now);
     const day: number = d.getDay();
     const diff: number = day === 0 ? 6 : day - 1;
     d.setHours(0, 0, 0, 0);
@@ -91,8 +91,8 @@ export class DateTimeUtil {
     return d.getTime();
   }
 
-  static startOfMonth(): number {
-    const d: Date = new Date();
+  static startOfMonth(now: number = Date.now()): number {
+    const d: Date = new Date(now);
     d.setDate(1);
     d.setHours(0, 0, 0, 0);
     return d.getTime();

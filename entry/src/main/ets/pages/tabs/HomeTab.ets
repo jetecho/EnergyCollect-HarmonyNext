@@ -340,7 +340,7 @@ export struct HomeTab {
     const recovered: number = AppStorage.get<number>('recoveredSessions') ?? 0;
     if (recovered > 0) {
       AppStorage.setOrCreate('recoveredSessions', 0);
-      this.showToastSafe(`检测到 ${recovered} 条异常会话，已自动结束`);
+      this.showToastSafe($r('app.string.toast_recovered_sessions', recovered));
     }
   }
 

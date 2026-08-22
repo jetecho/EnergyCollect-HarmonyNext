@@ -127,8 +127,8 @@ export struct HistoryTab {
       let totalCharge: number = 0;
       let statUnit: string = '%';
       if (nev && cap > 0) {
-        totalDrain = CalcUtil.totalDrain(sessions) * cap / 100;
-        totalCharge = CalcUtil.totalCharge(sessions) * cap / 100;
+        totalDrain = CalcUtil.toKwh(CalcUtil.totalDrain(sessions), cap);
+        totalCharge = CalcUtil.toKwh(CalcUtil.totalCharge(sessions), cap);
         statUnit = 'kWh';
       } else {
         totalDrain = CalcUtil.totalDrain(sessions);
@@ -293,14 +293,14 @@ export struct HistoryTab {
       .width('100%')
 
       Row({ space: 8 }) {
-        this.PeriodChip(0, $r('app.string.history_filter_all_types'))
+        this.PeriodChip(0, $r('app.string.history_filter_all'))
         this.PeriodChip(1, $r('app.string.history_filter_week'))
         this.PeriodChip(2, $r('app.string.history_filter_month'))
       }
       .width('100%')
 
       Row({ space: 8 }) {
-        this.TypeChip(-1, $r('app.string.history_filter_all_types'))
+        this.TypeChip(-1, $r('app.string.history_filter_all'))
         this.TypeChip(0, $r('app.string.history_filter_usage'))
         this.TypeChip(1, $r('app.string.history_filter_idle'))
         this.TypeChip(2, $r('app.string.history_filter_charge'))
@@ -429,7 +429,6 @@ export struct HistoryTab {
         Stack({ alignContent: Alignment.TopStart }) {
           TrendChart({
             points: this.chartPoints,
-            sessions: this.chartSessions,
             tag: 'trend',
             onTap: (d: ChartTooltipData): void => {
               this.onChartTap(d);

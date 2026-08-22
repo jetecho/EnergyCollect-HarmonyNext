@@ -467,7 +467,7 @@ export struct MineTab {
         }
       }
       DataNotifier.notifyAll();
-      this.showToastSafe(`导入成功：${devCount} 个设备，${sessCount} 条会话`);
+      this.showToastSafe($r('app.string.toast_import_success', devCount, sessCount));
     } catch (e) {
       try {
         db.rollbackTransaction();

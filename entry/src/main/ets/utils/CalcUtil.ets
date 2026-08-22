@@ -34,11 +34,19 @@ export class CalcUtil {
     const points: ChartPoint[] = [];
     const sorted: Session[] = sessions.slice().sort((a: Session, b: Session): number => a.startTime - b.startTime);
     for (const s of sorted) {
-      points.push(new ChartPoint(s.startTime, s.startBattery));
+      points.push(new ChartPoint(s.startTime, s.startBattery, s));
       if (s.isCompleted()) {
-        points.push(new ChartPoint(s.endTime, s.endBattery));
+        points.push(new ChartPoint(s.endTime, s.endBattery, s));
       }
     }
     return points;
+  }
+
+  /** 电量百分比合计换算为 kWh（capacityKwh 为电池容量，非正容量返回 0） */
+  static toKwh(batteryPercent: number, capacityKwh: number): number {
+    if (capacityKwh <= 0) {
+      return 0;
+    }
+    return batteryPercent * capacityKwh / 100;
   }
 }

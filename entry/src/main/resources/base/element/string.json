@@ -25,10 +25,6 @@
       "value": "我的"
     },
     {
-      "name": "home_title",
-      "value": "能量记录"
-    },
-    {
       "name": "home_no_device_title",
       "value": "还没有设备"
     },
@@ -43,10 +39,6 @@
     {
       "name": "home_start_usage",
       "value": "开始使用会话"
-    },
-    {
-      "name": "home_start_idle",
-      "value": "开始闲置会话"
     },
     {
       "name": "home_end_session",
@@ -77,10 +69,6 @@
       "value": "开始电量"
     },
     {
-      "name": "home_select_device",
-      "value": "选择设备"
-    },
-    {
       "name": "stat_today_sessions",
       "value": "今日会话"
     },
@@ -93,23 +81,7 @@
       "value": "今日补能"
     },
     {
-      "name": "stat_idle_rate",
-      "value": "平均掉电率"
-    },
-    {
-      "name": "stat_idle_rate_unit",
-      "value": "%/h"
-    },
-    {
-      "name": "history_title",
-      "value": "历史记录"
-    },
-    {
-      "name": "history_filter_all_devices",
-      "value": "全部设备"
-    },
-    {
-      "name": "history_filter_all_types",
+      "name": "history_filter_all",
       "value": "全部"
     },
     {
@@ -205,14 +177,6 @@
       "value": "暂无充电记录"
     },
     {
-      "name": "chart_detail_time",
-      "value": "时间"
-    },
-    {
-      "name": "chart_detail_note",
-      "value": "备注"
-    },
-    {
       "name": "session_type_usage",
       "value": "使用会话"
     },
@@ -227,10 +191,6 @@
     {
       "name": "session_in_progress",
       "value": "进行中"
-    },
-    {
-      "name": "mine_title",
-      "value": "我的"
     },
     {
       "name": "mine_section_devices",
@@ -275,10 +235,6 @@
     {
       "name": "mine_about",
       "value": "关于"
-    },
-    {
-      "name": "mine_version",
-      "value": "版本"
     },
     {
       "name": "device_name_label",
@@ -365,10 +321,6 @@
       "value": "确定"
     },
     {
-      "name": "action_done",
-      "value": "完成"
-    },
-    {
       "name": "battery_label",
       "value": "电量"
     },
@@ -422,7 +374,7 @@
     },
     {
       "name": "toast_export_success",
-      "value": "已导出到应用沙箱"
+      "value": "导出成功"
     },
     {
       "name": "toast_export_fail",
@@ -430,7 +382,7 @@
     },
     {
       "name": "toast_import_success",
-      "value": "导入成功"
+      "value": "导入成功：%1$d 个设备，%2$d 条会话"
     },
     {
       "name": "toast_import_fail",
@@ -481,20 +433,20 @@
       "value": "结束电量不能高于开始电量"
     },
     {
-      "name": "export_path_prefix",
-      "value": "文件已保存："
+      "name": "toast_recovered_sessions",
+      "value": "检测到 %d 条异常会话，已自动结束"
     },
     {
-      "name": "duration_hour",
-      "value": "时"
+      "name": "duration_format_hm",
+      "value": "%1$d时%2$d分"
     },
     {
-      "name": "duration_minute",
-      "value": "分"
+      "name": "duration_format_ms",
+      "value": "%1$d分%2$d秒"
     },
     {
-      "name": "duration_second",
-      "value": "秒"
+      "name": "duration_format_s",
+      "value": "%d秒"
     },
     {
       "name": "symbol_close",
