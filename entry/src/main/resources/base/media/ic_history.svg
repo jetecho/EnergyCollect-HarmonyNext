@@ -1,1 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd"><path d="M12 3 a9 9 0 1 0 0 18 a9 9 0 0 0 0 -18 Z M12.9 7.5 V12 a1 1 0 0 1 -0.45 0.83 l-3 1.9 a1 1 0 0 1 -1.1 -1.66 l2.55 -1.6 V7.5 a1 1 0 0 1 2 0 Z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+    <mask id="m">
+        <rect width="24" height="24" fill="#fff"/>
+        <path d="M12 12v-5.6M12 12H6.4" stroke="#000" stroke-width="1.9" stroke-linecap="round"/>
+    </mask>
+    <path d="M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z" mask="url(#m)"/>
+</svg>
