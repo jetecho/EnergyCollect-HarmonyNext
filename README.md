@@ -137,6 +137,12 @@ hdc shell aa start -a EntryAbility -b <bundleName>
 3. **查看历史**：历史页查看折线趋势、柱状耗充、会话详情（毫秒时间/电量变化/备注）；点击会话条目可编辑备注
 4. **数据备份**：我的页 → 导出数据（生成 JSON）→ 需要时导入数据恢复
 
+## 许可证
+
+本项目采用 [MIT License](LICENSE)。
+
+版权所有 (c) 2026 jetecho。详见 [`LICENSE`](LICENSE) 文件。
+
 ## 备注
 
 - 闲置掉电自动补录仅对「开始使用」触发（充电会话不触发）

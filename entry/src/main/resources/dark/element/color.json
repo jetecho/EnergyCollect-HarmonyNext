@@ -25,6 +25,10 @@
     { "name": "danger_bg", "value": "#3D1E18" },
     { "name": "success", "value": "#3DCE9E" },
     { "name": "icon_outline", "value": "#6E6E6E" },
-    { "name": "shadow", "value": "#000000" }
+    { "name": "shadow", "value": "#000000" },
+    { "name": "home_charge_color", "value": "#5C86FF" },
+    { "name": "home_charge_bg", "value": "#1E2B4C" },
+    { "name": "home_idle_color", "value": "#9AA6BC" },
+    { "name": "home_idle_bg", "value": "#232830" }
   ]
 }

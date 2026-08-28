@@ -1,11 +1,11 @@
 {
   "color": [
-    { "name": "start_window_background", "value": "#E8EEFE" },
+    { "name": "start_window_background", "value": "#F4F6FA" },
     { "name": "brand", "value": "#0A59F7" },
     { "name": "brand_light", "value": "#E8EEFE" },
-    { "name": "bg_primary", "value": "#F1F3F5" },
-    { "name": "bg_gradient_start", "value": "#E8EEFE" },
-    { "name": "bg_gradient_end", "value": "#D8E3F7" },
+    { "name": "bg_primary", "value": "#F4F6FA" },
+    { "name": "bg_gradient_start", "value": "#F7F9FC" },
+    { "name": "bg_gradient_end", "value": "#EFF2F8" },
     { "name": "bg_secondary", "value": "#FFFFFF" },
     { "name": "bg_card", "value": "#FFFFFF" },
     { "name": "bg_tab", "value": "#FFFFFF" },
@@ -25,6 +25,10 @@
     { "name": "danger_bg", "value": "#FDE8E4" },
     { "name": "success", "value": "#1FA978" },
     { "name": "icon_outline", "value": "#99A0B3" },
-    { "name": "shadow", "value": "#182431" }
+    { "name": "shadow", "value": "#182431" },
+    { "name": "home_charge_color", "value": "#2A5FE8" },
+    { "name": "home_charge_bg", "value": "#EDF2FE" },
+    { "name": "home_idle_color", "value": "#6B7891" },
+    { "name": "home_idle_bg", "value": "#EDF2FE" }
   ]
 }

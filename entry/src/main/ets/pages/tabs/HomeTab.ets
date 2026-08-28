@@ -79,22 +79,22 @@ export struct DeviceCard {
 
   private activeColor(s: Session): ResourceColor {
     if (s.type === SessionType.CHARGING) {
-      return $r('app.color.charge_color');
+      return $r('app.color.home_charge_color');
     }
     if (s.type === SessionType.USAGE) {
       return $r('app.color.usage_color');
     }
-    return $r('app.color.idle_color');
+    return $r('app.color.home_idle_color');
   }
 
   private activeBg(s: Session): ResourceColor {
     if (s.type === SessionType.CHARGING) {
-      return $r('app.color.charge_bg');
+      return $r('app.color.home_charge_bg');
     }
     if (s.type === SessionType.USAGE) {
       return $r('app.color.usage_bg');
     }
-    return $r('app.color.idle_bg');
+    return $r('app.color.home_idle_bg');
   }
 
   build() {
@@ -116,7 +116,7 @@ export struct DeviceCard {
             Image($r('app.media.ic_lightning'))
               .width(13)
               .height(13)
-              .fillColor($r('app.color.charge_color'))
+              .fillColor($r('app.color.home_charge_color'))
             Text(`${this.card.currentBattery}%`)
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
@@ -156,56 +156,40 @@ export struct DeviceCard {
   @Builder
   CtaRow() {
     Row({ space: 12 }) {
-      Column({ space: 8 }) {
-        Stack() {
-          Text('')
-            .width(40)
-            .height(40)
-            .backgroundColor($r('app.color.usage_color'))
-            .borderRadius(20)
-            .opacity(0.12)
-          Image(iconToResource(this.card.device.icon))
-            .width(20)
-            .height(20)
-            .fillColor($r('app.color.usage_color'))
-        }
-        .width(40)
-        .height(40)
+      Column({ space: 10 }) {
+        Image(iconToResource(this.card.device.icon))
+          .width(20)
+          .height(20)
+          .fillColor($r('app.color.brand'))
         Text($r('app.string.home_start_usage'))
-          .fontSize(12)
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary'))
       }
+      .justifyContent(FlexAlign.Center)
       .layoutWeight(1)
-      .padding({ top: 12, bottom: 12 })
+      .padding({ top: 16, bottom: 16 })
       .borderRadius(14)
       .backgroundColor($r('app.color.usage_bg'))
       .onClick(() => {
         this.onStart(this.card.device, SessionType.USAGE, this.card.currentBattery, this.card.currentRange);
       })
 
-      Column({ space: 8 }) {
-        Stack() {
-          Text('')
-            .width(40)
-            .height(40)
-            .backgroundColor($r('app.color.charge_color'))
-            .borderRadius(20)
-            .opacity(0.12)
-          Image(iconToResource(this.card.device.icon))
-            .width(20)
-            .height(20)
-            .fillColor($r('app.color.charge_color'))
-        }
-        .width(40)
-        .height(40)
+      Column({ space: 10 }) {
+        Image(iconToResource(this.card.device.icon))
+          .width(20)
+          .height(20)
+          .fillColor($r('app.color.brand'))
         Text($r('app.string.home_start_charge'))
-          .fontSize(12)
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary'))
       }
+      .justifyContent(FlexAlign.Center)
       .layoutWeight(1)
-      .padding({ top: 12, bottom: 12 })
+      .padding({ top: 16, bottom: 16 })
       .borderRadius(14)
-      .backgroundColor($r('app.color.charge_bg'))
+      .backgroundColor($r('app.color.home_charge_bg'))
       .onClick(() => {
         this.onStart(this.card.device, SessionType.CHARGING, this.card.currentBattery, this.card.currentRange);
       })
@@ -290,8 +274,7 @@ export struct DeviceCard {
         StatCard({
           label: $r('app.string.stat_today_charge'),
           value: `${this.card.chargeGain}`,
-          unit: '%',
-          valueColor: $r('app.color.charge_color')
+          unit: '%'
         })
       }
       .layoutWeight(1)
@@ -299,8 +282,7 @@ export struct DeviceCard {
         StatCard({
           label: $r('app.string.stat_today_drain'),
           value: `${this.card.todayDrain}`,
-          unit: '%',
-          valueColor: $r('app.color.danger')
+          unit: '%'
         })
       }
       .layoutWeight(1)
