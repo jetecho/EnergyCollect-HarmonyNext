@@ -274,7 +274,8 @@ export struct DeviceCard {
         StatCard({
           label: $r('app.string.stat_today_charge'),
           value: `${this.card.chargeGain}`,
-          unit: '%'
+          unit: '%',
+          valueColor: $r('app.color.charge_color')
         })
       }
       .layoutWeight(1)
@@ -282,7 +283,8 @@ export struct DeviceCard {
         StatCard({
           label: $r('app.string.stat_today_drain'),
           value: `${this.card.todayDrain}`,
-          unit: '%'
+          unit: '%',
+          valueColor: $r('app.color.danger')
         })
       }
       .layoutWeight(1)
