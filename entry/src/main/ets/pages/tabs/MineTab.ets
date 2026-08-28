@@ -1,6 +1,6 @@
 import { HdsNavigation } from '@kit.UIDesignKit';
-import { DeviceSheet } from '../../components/DeviceSheet';
-import { Device, iconToResource, iconToNameRes } from '../../model/Device';
+import { DeviceDialog } from '../../components/DeviceDialog';
+import { Device, iconToResource, iconToNameRes, isNev, statModeLabelRes } from '../../model/Device';
 import { Session } from '../../model/Session';
 import { SessionType } from '../../model/SessionType';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
@@ -9,6 +9,7 @@ import { PreferencesUtil } from '../../data/PreferencesUtil';
 import { Database } from '../../data/Database';
 import { DataNotifier } from '../../data/DataNotifier';
 import { Immersive } from '../../utils/Immersive';
+import { PAD_CARD, PAD_ROW, CORNER_MD } from '../../utils/DesignTokens';
 import { PromptAction, promptAction } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -45,18 +46,25 @@ export struct MineTab {
   @StorageProp('mineDataVersion') @Watch('reload') mineDataVersion: number = 0;
   @StorageProp('colorMode') colorMode: number = -1;
   @State devices: Device[] = [];
-  @State showSheet: boolean = false;
-  @State sheetTitle: ResourceStr = $r('app.string.dialog_new_device_title');
-  @State sheetName: string = '';
-  @State sheetIcon: string = 'other';
   @State sheetId: number = 0;
-  @State sheetCanDelete: boolean = false;
-  @State sheetCapacity: number = 0;
-  @State sheetRange: number = 0;
-  @State sheetStatMode: string = 'CLTC';
-  @State sheetIsDefault: boolean = false;
   @State aboutVersion: string = '';
   @StorageProp('defaultDeviceId') defaultDeviceId: number = -1;
+
+  private deviceDialogController: CustomDialogController | null = null;
+  private dialogTitle: ResourceStr = $r('app.string.dialog_new_device_title');
+  private dialogName: string = '';
+  private dialogIcon: string = 'other';
+  private dialogCapacity: number = 0;
+  private dialogRange: number = 0;
+  private dialogStatMode: string = 'CLTC';
+  private dialogCanDelete: boolean = false;
+  private dialogIsDefault: boolean = false;
+  /** 编辑模式下的旧值，用于判断是否有修改。 */
+  private editOriginalName: string = '';
+  private editOriginalIcon: string = '';
+  private editOriginalCapacity: number = 0;
+  private editOriginalRange: number = 0;
+  private editOriginalStatMode: string = '';
 
   private deviceRepo: DeviceRepository = new DeviceRepository();
   private sessionRepo: SessionRepository = new SessionRepository();
@@ -114,31 +122,102 @@ export struct MineTab {
 
   private openAddSheet(): void {
     this.sheetId = 0;
-    this.sheetName = '';
-    this.sheetIcon = 'other';
-    this.sheetCapacity = 0;
-    this.sheetRange = 0;
-    this.sheetStatMode = 'CLTC';
-    this.sheetIsDefault = false;
-    this.sheetTitle = $r('app.string.dialog_new_device_title');
-    this.sheetCanDelete = false;
-    this.showSheet = true;
+    this.dialogTitle = $r('app.string.dialog_new_device_title');
+    this.dialogName = '';
+    this.dialogIcon = 'other';
+    this.dialogCapacity = 0;
+    this.dialogRange = 0;
+    this.dialogStatMode = 'CLTC';
+    this.dialogCanDelete = false;
+    this.dialogIsDefault = false;
+    this.openDeviceDialog();
   }
 
   private openEditSheet(d: Device): void {
     this.sheetId = d.id;
-    this.sheetName = d.name;
-    this.sheetIcon = d.icon;
-    this.sheetCapacity = d.batteryCapacity;
-    this.sheetRange = d.rangeRated;
-    this.sheetStatMode = d.statMode.length > 0 ? d.statMode : 'CLTC';
-    this.sheetIsDefault = d.id === this.defaultDeviceId;
-    this.sheetTitle = $r('app.string.dialog_edit_device_title');
-    this.sheetCanDelete = true;
-    this.showSheet = true;
+    this.dialogTitle = $r('app.string.dialog_edit_device_title');
+    this.dialogName = d.name;
+    this.dialogIcon = d.icon;
+    this.dialogCapacity = d.batteryCapacity;
+    this.dialogRange = d.rangeRated;
+    this.dialogStatMode = d.statMode.length > 0 ? d.statMode : 'CLTC';
+    this.dialogCanDelete = true;
+    this.dialogIsDefault = d.id === this.defaultDeviceId;
+    this.editOriginalName = d.name;
+    this.editOriginalIcon = d.icon;
+    this.editOriginalCapacity = d.batteryCapacity;
+    this.editOriginalRange = d.rangeRated;
+    this.editOriginalStatMode = d.statMode.length > 0 ? d.statMode : 'CLTC';
+    this.openDeviceDialog();
   }
 
-  private async onSaveDevice(name: string, icon: string, capacity: number, rangeRated: number, statMode: string): Promise<void> {
+  private openDeviceDialog(): void {
+    this.deviceDialogController = new CustomDialogController({
+      builder: DeviceDialog({
+        sheetTitle: this.dialogTitle,
+        initialName: this.dialogName,
+        initialIcon: this.dialogIcon,
+        initialCapacity: this.dialogCapacity,
+        initialRange: this.dialogRange,
+        initialStatMode: this.dialogStatMode,
+        canDelete: this.dialogCanDelete,
+        isDefault: this.dialogIsDefault,
+        onSave: (name: string, icon: string, capacity: number, rangeRated: number, statMode: string): void => {
+          this.onSaveDevice(name, icon, capacity, rangeRated, statMode);
+        },
+        onDelete: (): void => {
+          this.confirmDeleteDevice();
+        },
+        onSetDefault: (): void => {
+          this.onSetDefaultDevice();
+        },
+        onInvalid: (): void => {
+          this.showToastSafe($r('app.string.toast_name_empty'));
+        }
+      }),
+      alignment: DialogAlignment.Center,
+      customStyle: false,
+      backgroundColor: $r('app.color.bg_primary')
+    });
+    this.deviceDialogController.open();
+  }
+
+  private onSaveDevice(name: string, icon: string, capacity: number, rangeRated: number, statMode: string): void {
+    if (this.sheetId > 0 && this.hasDeviceChanges(name, icon, capacity, rangeRated, statMode)) {
+      this.showDialogSafe({
+        title: $r('app.string.dialog_edit_confirm_title'),
+        message: $r('app.string.dialog_edit_confirm_desc'),
+        buttons: [
+          { text: $r('app.string.action_cancel'), color: $r('app.color.text_secondary') },
+          { text: $r('app.string.action_confirm'), color: $r('app.color.brand') }
+        ]
+      }, (index: number): void => {
+        if (index === 1) {
+          this.saveDeviceNow(name, icon, capacity, rangeRated, statMode);
+        }
+      });
+      return;
+    }
+    this.saveDeviceNow(name, icon, capacity, rangeRated, statMode);
+  }
+
+  private hasDeviceChanges(name: string, icon: string, capacity: number, rangeRated: number, statMode: string): boolean {
+    if (name !== this.editOriginalName) {
+      return true;
+    }
+    if (icon !== this.editOriginalIcon) {
+      return true;
+    }
+    if (capacity !== this.editOriginalCapacity) {
+      return true;
+    }
+    if (rangeRated !== this.editOriginalRange) {
+      return true;
+    }
+    return statMode !== this.editOriginalStatMode;
+  }
+
+  private async saveDeviceNow(name: string, icon: string, capacity: number, rangeRated: number, statMode: string): Promise<void> {
     try {
       if (this.sheetId === 0) {
         const id: number = await this.deviceRepo.insert(name, icon, capacity, rangeRated, statMode);
@@ -155,7 +234,7 @@ export struct MineTab {
       } else {
         await this.deviceRepo.update(this.sheetId, name, icon, capacity, rangeRated, statMode);
       }
-      this.showSheet = false;
+      this.closeDeviceDialog();
       DataNotifier.notifyAll();
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'onSaveDevice failed: %{public}s', JSON.stringify(e));
@@ -170,7 +249,7 @@ export struct MineTab {
     try {
       AppStorage.setOrCreate('defaultDeviceId', this.sheetId);
       await PreferencesUtil.setDefaultDeviceId(this.sheetId);
-      this.showSheet = false;
+      this.closeDeviceDialog();
       DataNotifier.notifyAll();
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'onSetDefaultDevice failed: %{public}s', JSON.stringify(e));
@@ -183,7 +262,7 @@ export struct MineTab {
       return;
     }
     const deleteId: number = this.sheetId;
-    this.showSheet = false;
+    this.closeDeviceDialog();
     try {
       await this.deviceRepo.delete(deleteId);
       const defId: number = AppStorage.get<number>('defaultDeviceId') ?? -1;
@@ -549,40 +628,13 @@ export struct MineTab {
       angle: 180,
       colors: [[$r('app.color.bg_gradient_start'), 0.0], [$r('app.color.bg_gradient_end'), 1.0]]
     })
-    .bindSheet($$this.showSheet, this.SheetBuilder(), {
-      detents: [SheetSize.MEDIUM, SheetSize.LARGE],
-      showClose: false,
-      backgroundColor: $r('app.color.bg_primary')
-    })
   }
 
-  @Builder
-  SheetBuilder() {
-    DeviceSheet({
-      sheetTitle: this.sheetTitle,
-      initialName: this.sheetName,
-      initialIcon: this.sheetIcon,
-      initialCapacity: this.sheetCapacity,
-      initialRange: this.sheetRange,
-      initialStatMode: this.sheetStatMode,
-      canDelete: this.sheetCanDelete,
-      isDefault: this.sheetIsDefault,
-      onSave: (name: string, icon: string, capacity: number, rangeRated: number, statMode: string): void => {
-        this.onSaveDevice(name, icon, capacity, rangeRated, statMode);
-      },
-      onDelete: (): void => {
-        this.confirmDeleteDevice();
-      },
-      onSetDefault: (): void => {
-        this.onSetDefaultDevice();
-      },
-      onClose: (): void => {
-        this.showSheet = false;
-      },
-      onInvalid: (): void => {
-        this.showToastSafe($r('app.string.toast_name_empty'));
-      }
-    })
+  private closeDeviceDialog(): void {
+    if (this.deviceDialogController !== null) {
+      this.deviceDialogController.close();
+      this.deviceDialogController = null;
+    }
   }
 
   private confirmDeleteDevice(): void {
@@ -616,9 +668,9 @@ export struct MineTab {
             .fontColor($r('app.color.text_tertiary'))
         }
         .width('100%')
-        .padding(20)
+        .padding(PAD_CARD)
         .backgroundColor($r('app.color.bg_card'))
-        .borderRadius(14)
+        .borderRadius(CORNER_MD)
         .justifyContent(FlexAlign.Center)
       } else {
         Column({ space: 10 }) {
@@ -670,11 +722,18 @@ export struct MineTab {
       Text(iconToNameRes(d.icon))
         .fontSize(12)
         .fontColor($r('app.color.text_tertiary'))
+        .margin({ left: 8 })
+      if (isNev(d.icon)) {
+        Text(statModeLabelRes(d.statMode))
+          .fontSize(12)
+          .fontColor($r('app.color.text_tertiary'))
+          .margin({ left: 8 })
+      }
     }
     .width('100%')
-    .padding({ left: 14, right: 14, top: 12, bottom: 12 })
+    .padding(PAD_ROW)
     .backgroundColor($r('app.color.bg_card'))
-    .borderRadius(14)
+    .borderRadius(CORNER_MD)
     .onClick(() => {
       this.openEditSheet(d);
     })
@@ -741,7 +800,7 @@ export struct MineTab {
       }
       .width('100%')
       .backgroundColor($r('app.color.bg_card'))
-      .borderRadius(14)
+      .borderRadius(CORNER_MD)
     }
     .width('100%')
   }
@@ -789,6 +848,6 @@ export struct MineTab {
     }
     .width('100%')
     .backgroundColor($r('app.color.bg_card'))
-    .borderRadius(14)
+    .borderRadius(CORNER_MD)
   }
 }

@@ -1,3 +1,5 @@
+import { PAD_CARD, CORNER_MD } from '../utils/DesignTokens';
+
 @Component
 export struct StatCard {
   @Prop label: ResourceStr;
@@ -31,8 +33,8 @@ export struct StatCard {
     }
     .alignItems(HorizontalAlign.Start)
     .width('100%')
-    .padding(14)
+    .padding(PAD_CARD)
     .backgroundColor($r('app.color.bg_card'))
-    .borderRadius(16)
+    .borderRadius(CORNER_MD)
   }
 }

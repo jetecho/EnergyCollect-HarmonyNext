@@ -8,6 +8,7 @@ import { HdsTabs, HdsTabsController, hdsMaterial } from '@kit.UIDesignKit';
 struct Index {
   @State currentTab: number = 0;
   private controller: HdsTabsController = new HdsTabsController();
+  @StorageProp('navBarHeight') navBarHeight: number = 0;
 
   build() {
     Column() {
@@ -29,10 +30,14 @@ struct Index {
       }
       .barPosition(BarPosition.End)
       .barOverlap(true)
+      .vertical(false)
       .scrollable(true)
-      .animationDuration(300)
       .barFloatingStyle({
-        barBottomMargin: 16,
+        barBottomMargin: 16 + this.navBarHeight,
+        gradientMask: {
+          maskColor: '#66F1F3F5',
+          maskHeight: 92
+        },
         adaptToHandedness: true,
         systemMaterialEffect: {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,

@@ -14,6 +14,7 @@ import { DeviceRepository } from '../../data/repository/DeviceRepository';
 import { SessionRepository } from '../../data/repository/SessionRepository';
 import { CalcUtil } from '../../utils/CalcUtil';
 import { DateTimeUtil } from '../../utils/DateTimeUtil';
+import { PAD_CARD, CORNER_MD, CORNER_SM } from '../../utils/DesignTokens';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
 const DOMAIN: number = 0x0001;
@@ -444,9 +445,9 @@ export struct HistoryTab {
       }
     }
     .width('100%')
-    .padding(14)
+    .padding(PAD_CARD)
     .backgroundColor($r('app.color.bg_card'))
-    .borderRadius(16)
+    .borderRadius(CORNER_MD)
   }
 
   @Builder
@@ -479,9 +480,9 @@ export struct HistoryTab {
       }
     }
     .width('100%')
-    .padding(14)
+    .padding(PAD_CARD)
     .backgroundColor($r('app.color.bg_card'))
-    .borderRadius(16)
+    .borderRadius(CORNER_MD)
   }
 
   @Builder
@@ -514,9 +515,9 @@ export struct HistoryTab {
       }
     }
     .width('100%')
-    .padding(14)
+    .padding(PAD_CARD)
     .backgroundColor($r('app.color.bg_card'))
-    .borderRadius(16)
+    .borderRadius(CORNER_MD)
   }
 
   /** 图表悬浮信息卡片 */
@@ -542,7 +543,7 @@ export struct HistoryTab {
     .padding(8)
     .alignItems(HorizontalAlign.Start)
     .backgroundColor($r('app.color.bg_card'))
-    .borderRadius(8)
+    .borderRadius(CORNER_SM)
     .shadow({ radius: 10, color: 'rgba(0,0,0,0.15)', offsetY: 4 })
     .position({ x: data.x, y: data.y })
     .translate({ x: -80, y: -90 })

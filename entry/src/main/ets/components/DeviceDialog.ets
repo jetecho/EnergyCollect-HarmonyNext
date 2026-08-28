@@ -1,19 +1,26 @@
 import { DEVICE_ICON_KEYS, iconToResource, iconToNameRes } from '../model/Device';
 
-@Component
-export struct DeviceSheet {
-  @Prop sheetTitle: ResourceStr;
-  @Prop initialName: string = '';
-  @Prop initialIcon: string = 'other';
-  @Prop initialCapacity: number = 0;
-  @Prop initialRange: number = 0;
-  @Prop initialStatMode: string = 'CLTC';
-  @Prop canDelete: boolean = false;
-  @Prop isDefault: boolean = false;
+/**
+ * 设备「新增 / 编辑」模态弹窗（@CustomDialog）。
+ *
+ * aboutToAppear() 在每次 controller.open() 时都会触发，因此从 @Prop 初值
+ * 重新初始化内部表单态，可确保每次打开都重置，从而根治此前 bindSheet 方案
+ * 中「关闭后残留上一次输入 / 状态错乱」的问题。
+ */
+@CustomDialog
+export struct DeviceDialog {
+  controller: CustomDialogController;
+  sheetTitle: ResourceStr = $r('app.string.dialog_new_device_title');
+  initialName: string = '';
+  initialIcon: string = 'other';
+  initialCapacity: number = 0;
+  initialRange: number = 0;
+  initialStatMode: string = 'CLTC';
+  canDelete: boolean = false;
+  isDefault: boolean = false;
   onSave: (name: string, icon: string, capacity: number, rangeRated: number, statMode: string) => void = () => {};
   onDelete: () => void = () => {};
   onSetDefault: () => void = () => {};
-  onClose: () => void = () => {};
   onInvalid: () => void = () => {};
   @State name: string = '';
   @State icon: string = 'other';
@@ -48,56 +55,19 @@ export struct DeviceSheet {
         Text($r('app.string.symbol_close'))
           .fontSize(20)
           .fontColor($r('app.color.text_tertiary'))
+          .padding(4)
           .onClick(() => {
-            this.onClose();
+            this.controller.close();
           })
       }
       .width('100%')
 
-      Column({ space: 8 }) {
-        Text($r('app.string.device_name_label'))
-          .fontSize(14)
-          .fontColor($r('app.color.text_secondary'))
-          .width('100%')
-        TextInput({
-          text: this.name,
-          placeholder: $r('app.string.device_name_placeholder')
-        })
-          .fontSize(15)
-          .height(48)
-          .backgroundColor($r('app.color.bg_primary'))
-          .borderRadius(12)
-          .onChange((v: string) => {
-            this.name = v;
-          })
+      Scroll() {
+        this.DialogContent()
       }
       .width('100%')
-
-      Column({ space: 10 }) {
-        Text($r('app.string.device_icon_label'))
-          .fontSize(14)
-          .fontColor($r('app.color.text_secondary'))
-          .width('100%')
-        Grid() {
-          ForEach(DEVICE_ICON_KEYS, (key: string) => {
-            GridItem() {
-              this.IconTile(key)
-            }
-          }, (key: string) => key)
-        }
-        .columnsTemplate('1fr 1fr 1fr')
-        .columnsGap(10)
-        .rowsGap(10)
-        .width('100%')
-        .height(210)
-      }
-      .width('100%')
-
-      if (this.icon === 'nev') {
-        this.NevFields()
-      }
-
-      Blank()
+      .constraintSize({ maxHeight: 420 })
+      .scrollBar(BarState.Auto)
 
       Row({ space: 12 }) {
         if (this.canDelete) {
@@ -140,9 +110,57 @@ export struct DeviceSheet {
       .width('100%')
     }
     .width('100%')
-    .height('100%')
     .padding(20)
     .backgroundColor($r('app.color.bg_primary'))
+  }
+
+  @Builder
+  DialogContent() {
+    Column({ space: 18 }) {
+      Column({ space: 8 }) {
+        Text($r('app.string.device_name_label'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_secondary'))
+          .width('100%')
+        TextInput({
+          text: this.name,
+          placeholder: $r('app.string.device_name_placeholder')
+        })
+          .fontSize(15)
+          .height(48)
+          .backgroundColor($r('app.color.bg_primary'))
+          .borderRadius(12)
+          .onChange((v: string) => {
+            this.name = v;
+          })
+      }
+      .width('100%')
+
+      Column({ space: 10 }) {
+        Text($r('app.string.device_icon_label'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_secondary'))
+          .width('100%')
+        Grid() {
+          ForEach(DEVICE_ICON_KEYS, (key: string) => {
+            GridItem() {
+              this.IconTile(key)
+            }
+          }, (key: string) => key)
+        }
+        .columnsTemplate('1fr 1fr 1fr')
+        .columnsGap(10)
+        .rowsGap(10)
+        .width('100%')
+      }
+      .width('100%')
+
+      if (this.icon === 'nev') {
+        this.NevFields()
+      }
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
   }
 
   @Builder

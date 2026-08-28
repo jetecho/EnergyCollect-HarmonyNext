@@ -246,7 +246,7 @@
     },
     {
       "name": "device_icon_label",
-      "value": "设备图标"
+      "value": "设备类型"
     },
     {
       "name": "device_capacity_label",
@@ -351,6 +351,14 @@
     {
       "name": "dialog_edit_device_title",
       "value": "编辑设备"
+    },
+    {
+      "name": "dialog_edit_confirm_title",
+      "value": "确认保存修改？"
+    },
+    {
+      "name": "dialog_edit_confirm_desc",
+      "value": "将应用你对设备所做的修改。"
     },
     {
       "name": "dialog_note_edit_title",

@@ -2,8 +2,8 @@ import { HdsNavigation } from '@kit.UIDesignKit';
 import { StatCard } from '../../components/StatCard';
 import { EmptyState } from '../../components/EmptyState';
 import { BatteryInputDialog } from '../../components/BatteryInputDialog';
-import { DeviceSheet } from '../../components/DeviceSheet';
-import { Device, iconToResource, isNev } from '../../model/Device';
+import { DeviceDialog } from '../../components/DeviceDialog';
+import { Device, iconToResource, isNev, statModeLabelRes } from '../../model/Device';
 import { Session } from '../../model/Session';
 import { SessionType } from '../../model/SessionType';
 import { DeviceRepository } from '../../data/repository/DeviceRepository';
@@ -12,6 +12,7 @@ import { SessionRepository, TodayStats } from '../../data/repository/SessionRepo
 import { Database } from '../../data/Database';
 import { DataNotifier } from '../../data/DataNotifier';
 import { DateTimeUtil } from '../../utils/DateTimeUtil';
+import { PAD_CARD, CORNER_MD } from '../../utils/DesignTokens';
 import { PromptAction } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -128,6 +129,12 @@ export struct DeviceCard {
               Text(`${this.card.currentRange}km`)
                 .fontSize(13)
                 .fontColor($r('app.color.text_secondary'))
+              Text($r('app.string.symbol_dot'))
+                .fontSize(13)
+                .fontColor($r('app.color.text_tertiary'))
+              Text(statModeLabelRes(this.card.device.statMode))
+                .fontSize(13)
+                .fontColor($r('app.color.text_secondary'))
             }
           }
         } else {
@@ -148,9 +155,9 @@ export struct DeviceCard {
       this.StatsRow()
     }
     .width('100%')
-    .padding(16)
+    .padding(PAD_CARD)
     .backgroundColor($r('app.color.bg_card'))
-    .borderRadius(18)
+    .borderRadius(CORNER_MD)
   }
 
   @Builder
@@ -169,7 +176,7 @@ export struct DeviceCard {
       .justifyContent(FlexAlign.Center)
       .layoutWeight(1)
       .padding({ top: 16, bottom: 16 })
-      .borderRadius(14)
+      .borderRadius(CORNER_MD)
       .backgroundColor($r('app.color.usage_bg'))
       .onClick(() => {
         this.onStart(this.card.device, SessionType.USAGE, this.card.currentBattery, this.card.currentRange);
@@ -188,7 +195,7 @@ export struct DeviceCard {
       .justifyContent(FlexAlign.Center)
       .layoutWeight(1)
       .padding({ top: 16, bottom: 16 })
-      .borderRadius(14)
+      .borderRadius(CORNER_MD)
       .backgroundColor($r('app.color.home_charge_bg'))
       .onClick(() => {
         this.onStart(this.card.device, SessionType.CHARGING, this.card.currentBattery, this.card.currentRange);
@@ -301,13 +308,13 @@ export struct HomeTab {
   // 孤儿会话恢复晚于页面创建时，通过 AppStorage 变化补发提示
   @StorageProp('recoveredSessions') @Watch('onRecoveredSessionsChange') recoveredSessions: number = 0;
   @State cards: DeviceCardData[] = [];
-  @State showDeviceSheet: boolean = false;
   private loadSeq: number = 0;
 
   private deviceRepo: DeviceRepository = new DeviceRepository();
   private sessionRepo: SessionRepository = new SessionRepository();
   private startDialogController: CustomDialogController | null = null;
   private endDialogController: CustomDialogController | null = null;
+  private deviceDialogController: CustomDialogController | null = null;
   @StorageProp('navBarHeight') navBarHeight: number = 0;
   @StorageProp('statusBarHeight') statusBarHeight: number = 0;
 
@@ -519,7 +526,7 @@ export struct HomeTab {
     try {
       const id: number = await this.deviceRepo.insert(name, icon, capacity, rangeRated, statMode);
       await this.ensureDefaultDevice(id);
-      this.showDeviceSheet = false;
+      this.closeDeviceDialog();
       DataNotifier.notifyAll();
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'saveDevice failed: %{public}s', JSON.stringify(e));
@@ -574,11 +581,34 @@ export struct HomeTab {
       angle: 180,
       colors: [[$r('app.color.bg_gradient_start'), 0.0], [$r('app.color.bg_gradient_end'), 1.0]]
     })
-    .bindSheet($$this.showDeviceSheet, this.DeviceSheetBuilder(), {
-      detents: [SheetSize.MEDIUM, SheetSize.LARGE],
-      showClose: false,
+  }
+
+  private openDeviceDialog(): void {
+    this.deviceDialogController = new CustomDialogController({
+      builder: DeviceDialog({
+        sheetTitle: $r('app.string.dialog_new_device_title'),
+        initialName: '',
+        initialIcon: 'other',
+        canDelete: false,
+        onSave: (name: string, icon: string, capacity: number, rangeRated: number, statMode: string): void => {
+          this.saveDevice(name, icon, capacity, rangeRated, statMode);
+        },
+        onInvalid: (): void => {
+          this.showToastSafe($r('app.string.toast_name_empty'));
+        }
+      }),
+      alignment: DialogAlignment.Center,
+      customStyle: false,
       backgroundColor: $r('app.color.bg_primary')
-    })
+    });
+    this.deviceDialogController.open();
+  }
+
+  private closeDeviceDialog(): void {
+    if (this.deviceDialogController !== null) {
+      this.deviceDialogController.close();
+      this.deviceDialogController = null;
+    }
   }
 
   @Builder
@@ -620,30 +650,11 @@ export struct HomeTab {
           .fontColor($r('app.color.text_on_brand'))
           .margin({ top: 8 })
           .onClick(() => {
-            this.showDeviceSheet = true;
+            this.openDeviceDialog();
           })
       }
       .width('100%')
       .padding({ top: 40 })
     }
-  }
-
-  @Builder
-  DeviceSheetBuilder() {
-    DeviceSheet({
-      sheetTitle: $r('app.string.dialog_new_device_title'),
-      initialName: '',
-      initialIcon: 'other',
-      canDelete: false,
-      onSave: (name: string, icon: string, capacity: number, rangeRated: number, statMode: string): void => {
-        this.saveDevice(name, icon, capacity, rangeRated, statMode);
-      },
-      onClose: (): void => {
-        this.showDeviceSheet = false;
-      },
-      onInvalid: (): void => {
-        this.showToastSafe($r('app.string.toast_name_empty'));
-      }
-    })
   }
 }

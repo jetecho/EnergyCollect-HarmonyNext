@@ -57,3 +57,11 @@ export function iconToNameRes(icon: string): Resource {
       return $r('app.string.device_type_other');
   }
 }
+
+/** 续航标准统计方式 -> 资源名（CLTC/WLTC），未知回退 CLTC。 */
+export function statModeLabelRes(mode: string): Resource {
+  if (mode === 'WLTC') {
+    return $r('app.string.stat_mode_wltc');
+  }
+  return $r('app.string.stat_mode_cltc');
+}

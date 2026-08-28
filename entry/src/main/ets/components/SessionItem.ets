@@ -3,6 +3,7 @@ import { SessionType } from '../model/SessionType';
 import { iconToResource } from '../model/Device';
 import { CalcUtil } from '../utils/CalcUtil';
 import { DateTimeUtil } from '../utils/DateTimeUtil';
+import { PAD_ROW, CORNER_MD } from '../utils/DesignTokens';
 
 @Component
 export struct SessionItem {
@@ -103,9 +104,9 @@ export struct SessionItem {
       .alignItems(HorizontalAlign.Start)
     }
     .width('100%')
-    .padding({ left: 14, right: 14, top: 12, bottom: 12 })
+    .padding(PAD_ROW)
     .backgroundColor($r('app.color.bg_card'))
-    .borderRadius(16)
+    .borderRadius(CORNER_MD)
     .alignItems(VerticalAlign.Top)
     .onClick(() => {
       this.onEditNote(this.session);
