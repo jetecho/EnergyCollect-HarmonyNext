@@ -12,6 +12,8 @@ export class Session {
   createdAt: number = 0;
   startRange: number = -1;
   endRange: number = -1;
+  /** 会话来源：manual 手动 / auto_bt 蓝牙连接自动 / auto_charge 充电状态自动 */
+  source: string = 'manual';
 
   isActive(): boolean {
     return this.endTime === 0;

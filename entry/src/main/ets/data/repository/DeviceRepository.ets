@@ -103,6 +103,44 @@ export class DeviceRepository {
     }
   }
 
+  /** 蓝牙自动同步：仅刷新电量/充电状态/同步时间，不触碰名称与绑定关系 */
+  async updateBtState(id: number, battery: number, leftBattery: number, rightBattery: number,
+    boxBattery: number, charging: number): Promise<void> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    const values: relationalStore.ValuesBucket = {
+      'bt_battery': battery,
+      'bt_left_battery': leftBattery,
+      'bt_right_battery': rightBattery,
+      'bt_box_battery': boxBattery,
+      'bt_charging': charging,
+      'bt_sync_at': Date.now()
+    };
+    const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('devices');
+    pred.equalTo('id', id);
+    try {
+      await store.update(values, pred);
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'updateBtState failed: %{public}s', JSON.stringify(e));
+      throw new Error('updateBtState failed');
+    }
+  }
+
+  /** 蓝牙连接状态持久化（边沿判定的跨进程依据） */
+  async updateBtConnState(id: number, connected: boolean): Promise<void> {
+    const store: relationalStore.RdbStore = this.db.getStore();
+    const values: relationalStore.ValuesBucket = {
+      'bt_conn_state': connected ? 1 : 0
+    };
+    const pred: relationalStore.RdbPredicates = new relationalStore.RdbPredicates('devices');
+    pred.equalTo('id', id);
+    try {
+      await store.update(values, pred);
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'updateBtConnState failed: %{public}s', JSON.stringify(e));
+      throw new Error('updateBtConnState failed');
+    }
+  }
+
   async delete(id: number): Promise<void> {
     const store: relationalStore.RdbStore = this.db.getStore();
     try {
@@ -146,6 +184,24 @@ export class DeviceRepository {
         d.rangeRated = rangeIdx >= 0 ? resultSet.getLong(rangeIdx) : 0;
         const modeIdx: number = resultSet.getColumnIndex('stat_mode');
         d.statMode = modeIdx >= 0 ? resultSet.getString(modeIdx) : '';
+        const btIdIdx: number = resultSet.getColumnIndex('bt_device_id');
+        d.btDeviceId = btIdIdx >= 0 ? resultSet.getString(btIdIdx) : '';
+        const btNameIdx: number = resultSet.getColumnIndex('bt_name');
+        d.btName = btNameIdx >= 0 ? resultSet.getString(btNameIdx) : '';
+        const btBatIdx: number = resultSet.getColumnIndex('bt_battery');
+        d.btBattery = btBatIdx >= 0 ? resultSet.getLong(btBatIdx) : -1;
+        const btLeftIdx: number = resultSet.getColumnIndex('bt_left_battery');
+        d.btLeftBattery = btLeftIdx >= 0 ? resultSet.getLong(btLeftIdx) : -1;
+        const btRightIdx: number = resultSet.getColumnIndex('bt_right_battery');
+        d.btRightBattery = btRightIdx >= 0 ? resultSet.getLong(btRightIdx) : -1;
+        const btBoxIdx: number = resultSet.getColumnIndex('bt_box_battery');
+        d.btBoxBattery = btBoxIdx >= 0 ? resultSet.getLong(btBoxIdx) : -1;
+        const btChgIdx: number = resultSet.getColumnIndex('bt_charging');
+        d.btCharging = btChgIdx >= 0 ? resultSet.getLong(btChgIdx) : -1;
+        const btSyncIdx: number = resultSet.getColumnIndex('bt_sync_at');
+        d.btSyncAt = btSyncIdx >= 0 ? resultSet.getLong(btSyncIdx) : 0;
+        const btConnIdx: number = resultSet.getColumnIndex('bt_conn_state');
+        d.btConnState = btConnIdx >= 0 ? resultSet.getLong(btConnIdx) : 0;
         list.push(d);
       }
     } catch (e) {

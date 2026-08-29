@@ -2,6 +2,7 @@ import { HomeTab } from './tabs/HomeTab';
 import { HistoryTab } from './tabs/HistoryTab';
 import { MineTab } from './tabs/MineTab';
 import { HdsTabs, HdsTabsController, hdsMaterial } from '@kit.UIDesignKit';
+import { EarphoneSyncManager } from '../utils/EarphoneSyncManager';
 
 @Entry
 @Component
@@ -9,6 +10,16 @@ struct Index {
   @State currentTab: number = 0;
   private controller: HdsTabsController = new HdsTabsController();
   @StorageProp('navBarHeight') navBarHeight: number = 0;
+  // 蓝牙校准保存后权限才就绪：数据版本变化时重试启动自动同步（内部幂等）
+  @StorageProp('homeDataVersion') @Watch('ensureSyncStarted') homeDataVersion: number = 0;
+
+  aboutToAppear(): void {
+    this.ensureSyncStarted();
+  }
+
+  private ensureSyncStarted(): void {
+    EarphoneSyncManager.getInstance().start();
+  }
 
   build() {
     Column() {

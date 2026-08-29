@@ -113,7 +113,8 @@ export class SessionRepository {
     }
   }
 
-  async startSession(deviceId: number, type: SessionType, startBattery: number, note: string, startRange?: number): Promise<number> {
+  async startSession(deviceId: number, type: SessionType, startBattery: number, note: string, startRange?: number,
+    source?: string): Promise<number> {
     const store: relationalStore.RdbStore = this.db.getStore();
     const now: number = Date.now();
     const values: relationalStore.ValuesBucket = {
@@ -123,7 +124,8 @@ export class SessionRepository {
       'start_time': now,
       'note': note,
       'created_at': now,
-      'start_range': startRange ?? -1
+      'start_range': startRange ?? -1,
+      'source': source ?? 'manual'
     };
     try {
       return await store.insert('sessions', values);
@@ -133,7 +135,8 @@ export class SessionRepository {
     }
   }
 
-  async startUsageSession(deviceId: number, startBattery: number, note: string, startRange: number): Promise<number> {
+  async startUsageSession(deviceId: number, startBattery: number, note: string, startRange: number,
+    source?: string): Promise<number> {
     const store: relationalStore.RdbStore = this.db.getStore();
     try {
       store.beginTransaction();
@@ -148,10 +151,11 @@ export class SessionRepository {
         await this.insertCompleted(
           deviceId, SessionType.IDLE,
           lastCompleted.endBattery, startBattery,
-          lastCompleted.endTime, Date.now()
+          lastCompleted.endTime, Date.now(),
+          undefined, undefined, source
         );
       }
-      const id: number = await this.startSession(deviceId, SessionType.USAGE, startBattery, note, startRange);
+      const id: number = await this.startSession(deviceId, SessionType.USAGE, startBattery, note, startRange, source);
       store.commit();
       return id;
     } catch (e) {
@@ -164,7 +168,8 @@ export class SessionRepository {
     }
   }
 
-  async insertCompleted(deviceId: number, type: SessionType, startBattery: number, endBattery: number, startTime: number, endTime: number, startRange?: number, endRange?: number): Promise<number> {
+  async insertCompleted(deviceId: number, type: SessionType, startBattery: number, endBattery: number,
+    startTime: number, endTime: number, startRange?: number, endRange?: number, source?: string): Promise<number> {
     const store: relationalStore.RdbStore = this.db.getStore();
     const values: relationalStore.ValuesBucket = {
       'device_id': deviceId,
@@ -176,7 +181,8 @@ export class SessionRepository {
       'note': '',
       'created_at': Date.now(),
       'start_range': startRange ?? -1,
-      'end_range': endRange ?? -1
+      'end_range': endRange ?? -1,
+      'source': source ?? 'manual'
     };
     try {
       return await store.insert('sessions', values);
@@ -186,7 +192,7 @@ export class SessionRepository {
     }
   }
 
-  async importSession(deviceId: number, type: SessionType, startBattery: number, endBattery: number, startTime: number, endTime: number, note: string, startRange: number, endRange: number): Promise<number> {
+  async importSession(deviceId: number, type: SessionType, startBattery: number, endBattery: number, startTime: number, endTime: number, note: string, startRange: number, endRange: number, source?: string): Promise<number> {
     const store: relationalStore.RdbStore = this.db.getStore();
     const values: relationalStore.ValuesBucket = {
       'device_id': deviceId,
@@ -198,7 +204,8 @@ export class SessionRepository {
       'note': note,
       'created_at': Date.now(),
       'start_range': startRange,
-      'end_range': endRange
+      'end_range': endRange,
+      'source': source !== undefined && source.length > 0 ? source : 'manual'
     };
     try {
       return await store.insert('sessions', values);
@@ -326,6 +333,9 @@ export class SessionRepository {
         s.startRange = srIdx >= 0 ? resultSet.getLong(srIdx) : -1;
         const erIdx: number = resultSet.getColumnIndex('end_range');
         s.endRange = erIdx >= 0 ? resultSet.getLong(erIdx) : -1;
+        const srcIdx: number = resultSet.getColumnIndex('source');
+        const src: string = srcIdx >= 0 ? resultSet.getString(srcIdx) : 'manual';
+        s.source = src.length > 0 ? src : 'manual';
         list.push(s);
       }
     } catch (e) {

@@ -475,6 +475,90 @@
     {
       "name": "symbol_dot",
       "value": "·"
+    },
+    {
+      "name": "permission_bluetooth_reason",
+      "value": "用于读取已连接蓝牙耳机的电量信息"
+    },
+    {
+      "name": "bt_calibrate",
+      "value": "蓝牙校准"
+    },
+    {
+      "name": "bt_calibrate_desc",
+      "value": "连接耳机后自动读取真实电量，并在充电时自动记录"
+    },
+    {
+      "name": "bt_recalibrate",
+      "value": "重新校准"
+    },
+    {
+      "name": "bt_unbind",
+      "value": "解除绑定"
+    },
+    {
+      "name": "bt_synced",
+      "value": "已绑定"
+    },
+    {
+      "name": "bt_label_ear",
+      "value": "耳机"
+    },
+    {
+      "name": "bt_label_left",
+      "value": "左"
+    },
+    {
+      "name": "bt_label_right",
+      "value": "右"
+    },
+    {
+      "name": "bt_label_case",
+      "value": "仓"
+    },
+    {
+      "name": "bt_label_charging",
+      "value": "充电中"
+    },
+    {
+      "name": "bt_segments_label",
+      "value": "部件电量"
+    },
+    {
+      "name": "bt_pick_title",
+      "value": "选择蓝牙耳机"
+    },
+    {
+      "name": "bt_no_device_title",
+      "value": "未检测到已连接的蓝牙耳机"
+    },
+    {
+      "name": "bt_no_device_msg",
+      "value": "请先在系统蓝牙设置中配对并连接耳机，然后返回本页重新点击\"蓝牙校准\"。"
+    },
+    {
+      "name": "bt_open_settings",
+      "value": "打开蓝牙设置"
+    },
+    {
+      "name": "bt_open_settings_fail",
+      "value": "跳转失败，请在系统设置中配对并连接耳机"
+    },
+    {
+      "name": "bt_permission_denied",
+      "value": "未获得蓝牙权限，无法校准"
+    },
+    {
+      "name": "bt_off",
+      "value": "蓝牙未开启，请先打开蓝牙"
+    },
+    {
+      "name": "bt_sync_fail",
+      "value": "电量读取失败，请确认耳机已连接"
+    },
+    {
+      "name": "bt_sync_ok",
+      "value": "电量同步成功"
     }
   ]
 }

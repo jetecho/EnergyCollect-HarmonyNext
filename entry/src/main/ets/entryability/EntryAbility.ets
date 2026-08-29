@@ -6,6 +6,7 @@ import { PreferencesUtil } from '../data/PreferencesUtil';
 import { SessionRepository, ORPHAN_SESSION_THRESHOLD_MS } from '../data/repository/SessionRepository';
 import { DataNotifier } from '../data/DataNotifier';
 import { Immersive } from '../utils/Immersive';
+import { EarphoneSyncManager } from '../utils/EarphoneSyncManager';
 
 const DOMAIN: number = 0x0001;
 const TAG: string = 'EnergyCollect';
@@ -135,6 +136,8 @@ export default class EntryAbility extends UIAbility {
 
   onForeground(): void {
     hilog.info(DOMAIN, TAG, '%{public}s', 'onForeground');
+    // 后台冻结期间错过的连接边沿，回前台第一时刻对账结算
+    EarphoneSyncManager.getInstance().reconcileOnForeground();
   }
 
   onBackground(): void {

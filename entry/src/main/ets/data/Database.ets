@@ -106,6 +106,16 @@ export class Database {
     await this.ensureColumn('devices', 'stat_mode', "ALTER TABLE devices ADD COLUMN stat_mode TEXT DEFAULT ''");
     await this.ensureColumn('sessions', 'start_range', 'ALTER TABLE sessions ADD COLUMN start_range INTEGER DEFAULT -1');
     await this.ensureColumn('sessions', 'end_range', 'ALTER TABLE sessions ADD COLUMN end_range INTEGER DEFAULT -1');
+    await this.ensureColumn('devices', 'bt_device_id', "ALTER TABLE devices ADD COLUMN bt_device_id TEXT DEFAULT ''");
+    await this.ensureColumn('devices', 'bt_name', "ALTER TABLE devices ADD COLUMN bt_name TEXT DEFAULT ''");
+    await this.ensureColumn('devices', 'bt_battery', 'ALTER TABLE devices ADD COLUMN bt_battery INTEGER DEFAULT -1');
+    await this.ensureColumn('devices', 'bt_left_battery', 'ALTER TABLE devices ADD COLUMN bt_left_battery INTEGER DEFAULT -1');
+    await this.ensureColumn('devices', 'bt_right_battery', 'ALTER TABLE devices ADD COLUMN bt_right_battery INTEGER DEFAULT -1');
+    await this.ensureColumn('devices', 'bt_box_battery', 'ALTER TABLE devices ADD COLUMN bt_box_battery INTEGER DEFAULT -1');
+    await this.ensureColumn('devices', 'bt_charging', 'ALTER TABLE devices ADD COLUMN bt_charging INTEGER DEFAULT -1');
+    await this.ensureColumn('devices', 'bt_sync_at', 'ALTER TABLE devices ADD COLUMN bt_sync_at INTEGER DEFAULT 0');
+    await this.ensureColumn('devices', 'bt_conn_state', 'ALTER TABLE devices ADD COLUMN bt_conn_state INTEGER DEFAULT 0');
+    await this.ensureColumn('sessions', 'source', "ALTER TABLE sessions ADD COLUMN source TEXT DEFAULT 'manual'");
   }
 
   private async ensureColumn(table: string, column: string, alterSql: string): Promise<void> {

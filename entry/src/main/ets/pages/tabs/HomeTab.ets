@@ -408,6 +408,16 @@ export struct HomeTab {
           card.currentRange = lastCompleted.endRange;
         }
       }
+      // 蓝牙绑定设备：系统电量读数是实时真值，只要存在且不早于当前会话开始即优先展示
+      if (device.btBattery >= 0 && (active === null || device.btSyncAt >= active.startTime)) {
+        card.currentBattery = device.btBattery;
+      }
+      hilog.info(DOMAIN, TAG,
+        'card %{public}s: bt=%{public}d btSyncAt=%{public}d active=%{public}s lastEnd=%{public}d -> %{public}d',
+        device.name, device.btBattery, device.btSyncAt,
+        active !== null ? `t${active.type}@${active.startTime}` : 'none',
+        lastCompleted !== null ? lastCompleted.endTime : -1,
+        card.currentBattery);
       card.todayCount = stats.count;
       card.todayDrain = stats.drain;
       card.chargeGain = stats.charge;
@@ -473,11 +483,19 @@ export struct HomeTab {
   private openEndDialog(session: Session, device: Device): void {
     const nev: boolean = isNev(device.icon);
     const isCharge: boolean = session.type === SessionType.CHARGING;
+    // 绑定了蓝牙的设备：结束会话默认填当前同步电量，并钳制在合法区间内
+    let defaultValue: number = -1;
+    if (device.btBattery >= 0) {
+      defaultValue = isCharge
+        ? Math.max(device.btBattery, session.startBattery)
+        : Math.min(device.btBattery, session.startBattery);
+    }
     this.endDialogController = new CustomDialogController({
       builder: BatteryInputDialog({
         title: $r('app.string.battery_end_title'),
         maxValue: isCharge ? 100 : session.startBattery,
         minValue: isCharge ? session.startBattery : 0,
+        defaultValue: defaultValue,
         showRange: nev,
         rangeMax: device.rangeRated,
         rangeDefault: session.startRange >= 0 ? session.startRange : -1,

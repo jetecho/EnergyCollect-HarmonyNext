@@ -38,6 +38,7 @@ interface ExportSessionV2 {
   note: string;
   startRange: number;
   endRange: number;
+  source?: string;
 }
 
 @Component
@@ -356,7 +357,7 @@ export struct MineTab {
           sessionRows.push({
             deviceIndex: idx, type: s.type, startBattery: s.startBattery, endBattery: s.endBattery,
             startTime: s.startTime, endTime: s.endTime, note: s.note,
-            startRange: s.startRange, endRange: s.endRange
+            startRange: s.startRange, endRange: s.endRange, source: s.source
           });
         }
       }
@@ -523,7 +524,8 @@ export struct MineTab {
           this.readNumber(row['endTime'], 0),
           this.readString(row['note']),
           this.readNumber(row['startRange']),
-          this.readNumber(row['endRange'])
+          this.readNumber(row['endRange']),
+          this.readSource(row['source'])
         );
         sessCount++;
       }
@@ -576,6 +578,15 @@ export struct MineTab {
       return field;
     }
     return '';
+  }
+
+  /** 导入会话来源：缺失或非法值回退 manual（兼容旧版导出文件） */
+  private readSource(field: Object | undefined): string {
+    const v: string = this.readString(field);
+    if (v === 'auto_bt' || v === 'auto_charge') {
+      return v;
+    }
+    return 'manual';
   }
 
   private confirmClear(): void {
