@@ -5,7 +5,7 @@
 ## 功能特性
 
 ### 设备管理
-- 多设备记录（电动车、新能源汽车、充电宝、手机、耳机、笔记本、其他）
+- 多设备记录（电动车、新能源汽车、充电宝、手机、笔记本、其他）
 - 默认设备：可设置一个设备为默认，首页置顶 + 历史页默认显示，首个添加的设备自动成为默认
 - 每设备独立卡片展示：设备名 + 当前电量 + 续航（新能源汽车）
 
@@ -13,9 +13,11 @@
 - **使用会话**：记录设备使用时的电量消耗
 - **充电会话**：记录充电补充的电量（结束电量 ≥ 开始电量）
 - **空闲耗电**：自动补录——开始使用会话时若电量低于上次结束电量，自动插入一条闲置耗电记录，保持电量链条连续
+- **会话来源标记**：每条会话记录来源（手动 / 蓝牙自动 / 充电自动），随导出导入保留
 - 实时计时：进行中的会话显示已用时长
 - 备注：每次会话可附加文字备注；历史页点击会话条目可随时编辑/清空备注
 - 电量微调：弹窗中大数字两侧提供 − / + 按钮点击步进（电量 1%、续航 1km），避免滑杆难以精调
+- 蓝牙电量预填：曾同步过蓝牙电量的设备，结束会话时自动预填当前真实电量
 
 ### 新能源汽车专属
 - 设备创建时设置：电池容量(kWh)、标称续航(km)、续航标准(CLTC/WLTC)
@@ -73,7 +75,7 @@ entry/src/main/ets/
 │   ├── DeviceCard (内嵌)  # 设备卡片（电量/续航/会话操作/计时）
 │   ├── BatteryInputDialog # 电量+续航输入弹窗（含 ± 微调按钮）
 │   ├── NoteEditDialog     # 会话备注编辑弹窗
-│   ├── DeviceSheet        # 设备创建/编辑表单（含新能源字段）
+│   ├── DeviceDialog       # 设备创建/编辑表单（含新能源字段）
 │   ├── SessionItem        # 历史会话条目（毫秒时间/电量/备注，点击可编辑备注）
 │   ├── LineChart (TrendChart)   # mpchart 折线图封装
 │   ├── SessionBarChart    # mpchart 柱状图封装
@@ -87,20 +89,22 @@ entry/src/main/ets/
 └── utils/
     ├── CalcUtil           # 电量/续航/kWh 统计计算
     ├── DateTimeUtil       # 时间格式化（含毫秒精度）
+    ├── BluetoothService   # 蓝牙 API 封装（权限/连接枚举/电量读取/事件订阅）
+    ├── EarphoneSyncManager # 蓝牙自动会话引擎（当前无绑定设备，静默待命）
     └── Immersive          # 沉浸式窗口配置
 ```
 
 ## 数据模型
 
 ### Device（设备）
-`id / name / icon / sortOrder / archived / createdAt / batteryCapacity / rangeRated / statMode`
+`id / name / icon / sortOrder / archived / createdAt / batteryCapacity / rangeRated / statMode`，以及蓝牙同步字段（`btDeviceId / btName / btBattery / btCharging / btConnState` 等，供自动会话引擎使用）
 
 ### Session（会话）
-`id / deviceId / type(USAGE=0/IDLE=1/CHARGING=2) / startBattery / endBattery / startTime / endTime / note / startRange / endRange`
+`id / deviceId / type(USAGE=0/IDLE=1/CHARGING=2) / startBattery / endBattery / startTime / endTime / note / startRange / endRange / source(manual/auto_bt/auto_charge)`
 
 ### 数据库表
-- `devices`：含电池容量/标称续航/统计模式（新能源汽车字段）
-- `sessions`：含起止续航（新能源汽车字段）
+- `devices`：含电池容量/标称续航/统计模式（新能源汽车字段）+ 蓝牙同步字段
+- `sessions`：含起止续航（新能源汽车字段）+ 会话来源
 - 启动时自动 ALTER TABLE 兼容旧库升级
 
 ## 构建与运行
@@ -150,3 +154,5 @@ hdc shell aa start -a EntryAbility -b <bundleName>
 - 「我的」页版本号从应用包动态读取，与 app.json5 保持一致
 - 新能源汽车的 kWh 统计仅在历史页该设备选中时切换为绝对值单位
 - 代码混淆（obfuscation）默认未启用，发布前如需请在 build-profile.json5 配置
+- 内置蓝牙自动会话引擎（连接自动开始使用会话、断开 2 分钟宽限后结束、充电与使用互斥），当前无绑定设备处于静默待命状态
+- **签名配置（调试或正式密钥）绝不提交入库**：`build-profile.json5` 的 `signingConfigs` 仅保留在本地（已设置 git skip-worktree），克隆后需在 DevEco Studio 重新配置自动签名
